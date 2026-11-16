@@ -90,7 +90,6 @@ func createSynthetic(n: Int, author: String) throws {
         m.groupID = g.identifier
         saveManifest(m)
     }
-    let group = CNMutableGroup(); _ = group
     let groups = try store.groups(matching: CNGroup.predicateForGroups(withIdentifiers: [m.groupID!]))
     guard let grp = groups.first else { fail("group missing") }
     var done = 0
@@ -173,7 +172,17 @@ case "run":
     let (excl, _) = try readHistory(since: t0, excluding: [author])
     print("history since start, excluding us:   ", line(excl))
 
-    // 2. Incremental read from saved token: add/update/delete by 'other' author.
+    // 2. Full read timing of the synthetic contacts (group members), before any delete.
+    let gid = loadManifest().groupID!
+    t = now()
+    let keys: [CNKeyDescriptor] = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactPhoneNumbersKey, CNContactIdentifierKey].map { $0 as CNKeyDescriptor }
+    let fr = CNContactFetchRequest(keysToFetch: keys)
+    fr.predicate = CNContact.predicateForContactsInGroup(withIdentifier: gid)
+    var read = 0
+    try store.enumerateContacts(with: fr) { _, _ in read += 1 }
+    print(String(format: "full read of group: %d contacts in %.3fs", read, now() - t))
+
+    // 3. Incremental read from saved token: add/update/delete by 'other' author.
     var m = loadManifest()
     let tokBefore = store.currentHistoryToken
     let r = CNSaveRequest(); r.transactionAuthor = otherAuthor
@@ -191,16 +200,6 @@ case "run":
     let (again, _) = try readHistory(since: tokInc, excluding: [author])
     print("re-read from returned token:         ", line(again))
     _ = tokAll
-
-    // 3. Full read timing of synthetic contacts (group members).
-    let gid = loadManifest().groupID!
-    t = now()
-    let keys: [CNKeyDescriptor] = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactPhoneNumbersKey, CNContactIdentifierKey].map { $0 as CNKeyDescriptor }
-    let fr = CNContactFetchRequest(keysToFetch: keys)
-    fr.predicate = CNContact.predicateForContactsInGroup(withIdentifier: gid)
-    var read = 0
-    try store.enumerateContacts(with: fr) { _, _ in read += 1 }
-    print(String(format: "full read of group: %d contacts in %.3fs", read, now() - t))
 
     // 4. Invalid/expired token behaviour.
     let bogus = Data("not-a-real-token".utf8)

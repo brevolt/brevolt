@@ -1,30 +1,30 @@
 # Spike 001 · Contacts change history on macOS (BRV-001)
 
-**Resultado: funciona con limitaciones.** Requisitos: R-BR-1, R-BR-3, R-BR-5.
-Código: `spikes/contacts-history/` (SwiftPM, `swift build`). macOS 27 / Swift 6.4, contenedor local "En mi Mac".
+**Result: works with limitations.** Requirements: R-BR-1, R-BR-3, R-BR-5.
+Code: `spikes/contacts-history/` (SwiftPM, `swift build`). macOS 27 / Swift 6.4, local "On My Mac" container.
 
-## Resumen
+## Summary
 
-| Criterio | Resultado |
+| Criterion | Result |
 |---|---|
-| Altas, modificaciones y borrados desde un token guardado | OK: 1 alta + 1 modificación + 1 borrado detectados con `CNChangeHistoryFetchRequest` |
-| `transactionAuthor` + `excludedTransactionAuthors` | OK: 1.000 altas visibles sin exclusión, 0 con el autor excluido; un autor distinto sí aparece |
-| Lectura completa de 1.000 contactos sintéticos | ~0,024 s (999 contactos, `enumerateContacts` filtrado por grupo, claves: nombre, apellido, teléfonos) |
-| Token caducado/inválido | No da error; ver abajo |
+| Adds, updates and deletes from a saved token | OK: 1 add + 1 update + 1 delete detected with `CNChangeHistoryFetchRequest` |
+| `transactionAuthor` + `excludedTransactionAuthors` | OK: 1,000 adds visible without exclusion, 0 with our author excluded; a different author still shows up |
+| Full read of 1,000 synthetic contacts | ~0.026 s (1,000 contacts, `enumerateContacts` filtered by group; keys: given name, family name, phone numbers) |
+| Expired/invalid token | No error is raised; see below |
 
-Escritura de 1.000 contactos en lotes de 100: ~4–4,4 s.
+Writing 1,000 contacts in batches of 100 takes ~4 s.
 
-## Limitaciones
+## Limitations
 
-1. **`enumeratorForChangeHistoryFetchRequest:error:` es `NS_SWIFT_UNAVAILABLE`.** Desde Swift no se puede llamar directamente: hace falta un shim Objective-C (`Sources/CHShim`, ~15 líneas) en el mismo paquete SwiftPM.
-2. **Token caducado o corrupto: no hay error.** Con un token inventado o vacío la lectura devuelve el historial completo: un `CNChangeHistoryDropEverythingEvent` seguido de todas las altas. Por tanto R-BR-5 se detecta así: si aparece `DropEverythingEvent` → descartar estado incremental y tratar el lote como snapshot completo. No existe un código de error que comprobar.
-3. El `currentHistoryToken` se obtiene antes de escribir; el token devuelto por cada lectura (`CNFetchResult.currentHistoryToken`) es el que hay que guardar. Releer desde él devuelve 0 eventos.
-4. Con `shouldUnifyResults = true` los eventos vienen ya unificados; los borrados solo traen `contactIdentifier`, no los datos del contacto.
-5. Este spike no mide el comportamiento en cuentas iCloud/CardDAV (solo se probó el contenedor local), ni la caducidad real por tiempo/volumen de historial; la caducidad solo se simuló con un token inválido.
+1. **`enumeratorForChangeHistoryFetchRequest:error:` is `NS_SWIFT_UNAVAILABLE`.** It cannot be called from Swift directly: a small Objective-C shim (`Sources/CHShim`, ~15 lines) is needed in the same SwiftPM package.
+2. **An expired or corrupt token does not raise an error.** With a made-up or empty token the read returns the full history: a `CNChangeHistoryDropEverythingEvent` followed by all adds. R-BR-5 is therefore detected like this: if a `DropEverythingEvent` appears, discard incremental state and treat the batch as a full snapshot. There is no error code to check.
+3. Take `currentHistoryToken` before writing; the token returned by each read (`CNFetchResult.currentHistoryToken`) is the one to persist. Re-reading from it returns 0 events.
+4. With `shouldUnifyResults = true` events arrive unified; deletes carry only `contactIdentifier`, not the contact data.
+5. Only the local container was tested (no iCloud/CardDAV), and real expiry by time or history size was not measured; expiry was only simulated with an invalid token.
 
-## Fragmentos reutilizables
+## Reusable snippets
 
-Escritura etiquetada (R-BR-3):
+Tagged write (R-BR-3):
 
 ```swift
 let r = CNSaveRequest()
@@ -33,11 +33,11 @@ r.add(contact, toContainerWithIdentifier: containerID)
 try store.execute(r)
 ```
 
-Lectura incremental excluyendo escrituras propias (R-BR-1/3/5):
+Incremental read excluding our own writes (R-BR-1/3/5):
 
 ```swift
 let req = CNChangeHistoryFetchRequest()
-req.startingToken = savedToken               // nil = desde el principio
+req.startingToken = savedToken               // nil = from the beginning
 req.excludedTransactionAuthors = ["com.brevolt.bridge"]
 req.shouldUnifyResults = true
 var newToken: NSData?
@@ -47,18 +47,18 @@ for e in events {
     case let a as CNChangeHistoryAddContactEvent:    /* a.contact */
     case let u as CNChangeHistoryUpdateContactEvent: /* u.contact */
     case let d as CNChangeHistoryDeleteContactEvent: /* d.contactIdentifier */
-    case is CNChangeHistoryDropEverythingEvent:      /* token inválido → snapshot completo */
+    case is CNChangeHistoryDropEverythingEvent:      /* invalid token -> full snapshot */
     default: break
     }
 }
-// guardar newToken solo tras procesar con éxito
+// persist newToken only after processing succeeded
 ```
 
-## Seguridad del spike
+## Spike safety
 
-Se ejecutó en la cuenta real de raul, solo en el contenedor local "En mi Mac" (se aborta si no existe), con contactos sintéticos `ZZ-BRV-SPIKE`, grupo propio, borrado únicamente por identificador de manifiesto (con doble comprobación del prefijo), escrituras bajo `--allow-write` y sin imprimir datos de contactos. Verificado al terminar: 0 contactos y 0 grupos `ZZ-BRV-SPIKE`.
+Run on raul's real account (no test Apple ID exists; approved by raul in BRE-2), only in the local "On My Mac" container (the CLI aborts if it is missing). Synthetic `ZZ-BRV-SPIKE` contacts in their own group; deletes only by manifest identifier (with a second prefix check); writes behind `--allow-write`; no contact data printed. Verified at the end: 0 `ZZ-BRV-SPIKE` contacts and 0 groups remain.
 
-## Uso
+## Usage
 
 ```
 swift build
