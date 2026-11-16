@@ -3,7 +3,7 @@
 // Usage: node spike.mjs <auth|list|sync|update|stale-etag|expired|quota>  [args]
 // Env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET (load with `node --env-file=.env spike.mjs ...`)
 import { createServer } from 'node:http';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { randomBytes, createHash } from 'node:crypto';
 
 const TOKENS = new URL('./.tokens.json', import.meta.url);
@@ -21,12 +21,12 @@ const anon = (obj) => {
   const s = JSON.stringify(obj)
     .replace(/people\/c\d+/g, () => `people/c${1000 + n++}`)
     .replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, 'user@example.com')
-    .replace(/\+?\d[\d\s().-]{6,}\d/g, '+34 600 000 000')
+    .replace(/(?<![\d-])\+?\(?\d[\d\s().-]{6,}\d(?![\d:TZ-])/g, (m) => (/^\d{4}-\d{2}-\d{2}/.test(m) ? m : '+34 600 000 000'))
     .replace(/"(etag|syncToken|nextPageToken|nextSyncToken)":"[^"]+"/g, '"$1":"REDACTED"')
     .replace(/"(displayName|givenName|familyName|unstructuredName|displayNameLastFirst)":"[^"]*"/g, '"$1":"Test Person"');
   return JSON.parse(s);
 };
-const save = async (name, data) => writeFile(new URL(name, FIXTURES), JSON.stringify(anon(data), null, 2) + '\n');
+const save = async (name, data) => { await mkdir(FIXTURES, { recursive: true }); return writeFile(new URL(name, FIXTURES), JSON.stringify(anon(data), null, 2) + '\n'); };
 
 // ---- OAuth (authorization code + PKCE, loopback redirect)
 async function auth() {
