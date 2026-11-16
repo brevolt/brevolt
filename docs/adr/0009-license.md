@@ -1,6 +1,6 @@
 # ADR-0009: License: MIT or AGPL-3.0
 
-- Status: Proposed (decision pending: @raul)
+- Status: Accepted (decided by @raul: AGPL-3.0)
 - Date: 2026-11-16
 - Spike reports: none
 
@@ -10,12 +10,12 @@ Brevolt is open source and self-hosted. The license must be chosen before the fi
 
 ## Decision
 
-**Pending @raul.** Two options:
+**AGPL-3.0**, chosen by @raul. Options considered:
 
 - **MIT**: maximal adoption and simplicity; anyone, including hosted competitors, can reuse the code without sharing changes.
 - **AGPL-3.0**: network copyleft; modified versions offered as a service must publish their source. Protects against closed hosted forks but may deter some contributors and companies; the Obsidian plugin and a Swift bridge distributed to users need consideration of how copyleft applies to each.
 
-No recommendation is made on product grounds. Update this ADR to `Accepted` with the chosen option.
+The `LICENSE` file at the repository root carries the AGPL-3.0 text.
 
 ## Alternatives considered
 
@@ -23,4 +23,4 @@ No recommendation is made on product grounds. Update this ADR to `Accepted` with
 
 ## Consequences
 
-- BRV-010 needs the `LICENSE` file; it can start with this ADR still Proposed only if @raul accepts adding the license later, otherwise this blocks that file.
+- Hosted forks must publish their modifications. How copyleft applies to the Obsidian plugin and the Swift bridge distributed to users should be revisited before release.
