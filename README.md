@@ -21,4 +21,4 @@ Configuration comes from environment variables; copy `.env.example` to `.env` an
 
 ## License
 
-Pending decision (ADR-0009). A `LICENSE` file will be added once it is accepted.
+AGPL-3.0 (see [LICENSE](LICENSE) and [ADR-0009](docs/adr/0009-license.md)).
