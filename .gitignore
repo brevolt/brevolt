@@ -1,0 +1,5 @@
+node_modules/
+.env*
+!.env.example
+spikes/google-people/.tokens.json
+spikes/google-people/.sync-state.json

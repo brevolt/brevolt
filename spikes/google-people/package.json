@@ -1,0 +1,1 @@
+{ "name": "spike-google-people", "private": true, "type": "module", "description": "BRV-002 spike. No dependencies (Node >= 20, fetch)." }
