@@ -12,6 +12,6 @@ Read `AGENTS.md` first; it holds the hard rules (no secrets, no real personal da
 
 - Blocking jobs on PRs to `main`: `lint`, `typecheck`, `test`, `secrets` (gitleaks, full history), `codeql`, `audit` (`pnpm audit --prod`, high or critical).
 - Pre-commit secret scanning: install [pre-commit](https://pre-commit.com) and run `pre-commit install` once; it runs gitleaks with `.gitleaks.toml`.
-- Dependencies are updated by Renovate (`renovate.json`); GitHub Actions are pinned by digest.
+- Dependencies are updated by Renovate (`renovate.json`); GitHub Actions use version tags today; Renovate pins them by digest (`helpers:pinGitHubActionDigests`) in its first PRs.
 - Repository settings (protected `main` with required review and signed commits, secret scanning with push protection) are applied by an admin with `scripts/apply-repo-security.sh`.
 - Audit exceptions must be documented in the PR that adds them (`pnpm.auditConfig.ignoreCves`).

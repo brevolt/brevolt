@@ -4,9 +4,10 @@
 set -euo pipefail
 REPO="${1:-brevolt/brevolt}"
 
-# Secret scanning + push protection.
+# GitHub Code Security (needed by CodeQL on private repos), secret scanning + push protection.
 gh api -X PATCH "repos/$REPO" --input - <<JSON
 {"security_and_analysis":{
+  "advanced_security":{"status":"enabled"},
   "secret_scanning":{"status":"enabled"},
   "secret_scanning_push_protection":{"status":"enabled"}}}
 JSON
