@@ -1,514 +1,514 @@
-# Brevolt — Proceso de desarrollo y backlog
+# Brevolt — Development process and backlog
 
-## Cómo usar este documento
+## How to use this document
 
-Este documento convierte la [especificación de Brevolt](spec.md) en 7 fases y 44 issues listos para el flujo PO → Dev → @raul de Multica. Cada fase termina en una puerta de calidad que @raul valida antes de abrir la siguiente.
+This document turns the [Brevolt specification](spec.md) into 7 phases and 44 issues ready for Multica's PO → Dev → @raul flow. Each phase ends in a quality gate that @raul validates before opening the next one.
 
-1. **El PO crea un issue por cada entrada `BRV-xxx`**, con su título, descripción, criterios de aceptación, tests obligatorios y dependencias tal como aparecen aquí. El código `BRV-xxx` va en el título para trazar ramas y PRs.
-2. **El PO solo marca `po:ready`** cuando el issue cumple la Definition of Ready y todas sus dependencias están cerradas.
-3. **El Developer trabaja un issue por PR**, sigue las convenciones de este documento y no da el issue por terminado sin cumplir la Definition of Done.
-4. **El Code Reviewer revisa** contra los criterios de aceptación y los requisitos `R-xxx` citados.
-5. **@raul hace la revisión final y la QA**, y es el único que cierra una puerta de fase.
+1. **The PO creates one issue per `BRV-xxx` entry**, with its title, description, acceptance criteria, required tests and dependencies exactly as they appear here. The `BRV-xxx` code goes in the title so branches and PRs can be traced.
+2. **The PO only marks `po:ready`** when the issue meets the Definition of Ready and all its dependencies are closed.
+3. **The Developer works one issue per PR**, follows the conventions in this document and does not consider the issue finished until it meets the Definition of Done.
+4. **The Code Reviewer reviews** against the acceptance criteria and the cited `R-xxx` requirements.
+5. **@raul does the final review and QA**, and is the only one who closes a phase gate.
 
-**Idioma.** Issues y comentarios en español; títulos de issue, código, ramas, commits y PRs en inglés.
+**Language.** Everything is in English: issues, comments, issue titles, code, branches, commits and PRs.
 
-**Etiquetas.** `phase:0` a `phase:6`; `area:core`, `area:server`, `area:dashboard`, `area:bridge`, `area:obsidian`, `area:google`, `area:infra`; `type:spike`, `type:feature`, `type:test`, `type:chore`; `security` para todo lo que toque secretos, autenticación o datos personales; `po:ready` cuando el issue está listo para desarrollo.
+**Labels.** `phase:0` to `phase:6`; `area:core`, `area:server`, `area:dashboard`, `area:bridge`, `area:obsidian`, `area:google`, `area:infra`; `type:spike`, `type:feature`, `type:test`, `type:chore`; `security` for anything that touches secrets, authentication or personal data; `po:ready` when the issue is ready for development.
 
-**Regla de oro.** Ningún issue puede tocar contactos reales. Hasta cerrar la fase 5, todo se prueba con cuentas de prueba y datos sintéticos.
+**Golden rule.** No issue may touch real contacts. Until phase 5 is closed, everything is tested with test accounts and synthetic data.
 
 ## Roadmap
 
-Las fases van en orden estricto: ninguna empieza hasta que @raul cierra la puerta de la anterior. Dentro de una fase, los issues sin dependencias entre sí pueden ir en paralelo.
+Phases run in strict order: none starts until @raul closes the previous one's gate. Within a phase, issues with no dependencies between them can run in parallel.
 
 ```mermaid
 flowchart TD
-    F0["Fase 0 · Spikes de riesgo<br/>BRV-001 a 004"] -->|"G0 · Informes de los spikes y ADR de stack aprobados"| F1
-    F1["Fase 1 · Fundaciones y núcleo<br/>BRV-010 a 016"] -->|"G1 · CI bloqueante; core ≥ 95 % y propiedades en verde"| F2
-    F2["Fase 2 · Servidor y dashboard<br/>BRV-020 a 028"] -->|"G2 · Staging en marcha; CRUD, deshacer y restauración probados"| F3
-    F3["Fase 3 · Puente macOS<br/>BRV-030 a 037"] -->|"G3 · Ida y vuelta iPhone ↔ hub; 24 h sin bucles"| F4
-    F4["Fase 4 · Obsidian<br/>BRV-040 a 046"] -->|"G4 · Una edición en Obsidian llega al iPhone; cuerpo intacto"| F5
-    F5["Fase 5 · Google<br/>BRV-050 a 054"] -->|"G5 · Tres sistemas 7 días sin pérdidas ni duplicados"| F6
-    F6["Fase 6 · Release 1.0<br/>BRV-060 a 063"] -->|"G6 · Seguridad revisada; contactos reales 7 días; v1.0.0"| DONE
-    DONE["Brevolt 1.0 en producción"]
+    F0["Phase 0 · Risk spikes<br/>BRV-001 to 004"] -->|"G0 · Spike reports and stack ADR approved"| F1
+    F1["Phase 1 · Foundations and core<br/>BRV-010 to 016"] -->|"G1 · Blocking CI; core ≥ 95 % and properties green"| F2
+    F2["Phase 2 · Server and dashboard<br/>BRV-020 to 028"] -->|"G2 · Staging running; CRUD, undo and restore tested"| F3
+    F3["Phase 3 · macOS bridge<br/>BRV-030 to 037"] -->|"G3 · iPhone ↔ hub round trip; 24 h without loops"| F4
+    F4["Phase 4 · Obsidian<br/>BRV-040 to 046"] -->|"G4 · An edit in Obsidian reaches the iPhone; body intact"| F5
+    F5["Phase 5 · Google<br/>BRV-050 to 054"] -->|"G5 · Three systems 7 days without losses or duplicates"| F6
+    F6["Phase 6 · Release 1.0<br/>BRV-060 to 063"] -->|"G6 · Security reviewed; real contacts 7 days; v1.0.0"| DONE
+    DONE["Brevolt 1.0 in production"]
 ```
 
-La única excepción al orden es BRV-034 (esqueleto del bridge), que solo depende del ADR y puede adelantarse durante la fase 2 si hay capacidad libre.
+The only exception to the order is BRV-034 (bridge skeleton), which depends only on the ADR and can be brought forward during phase 2 if there is spare capacity.
 
-## Definition of Ready y Definition of Done
+## Definition of Ready and Definition of Done
 
-Un issue entra en desarrollo solo si cumple la DoR y se cierra solo si cumple la DoD; el PO comprueba la primera y el Code Reviewer la segunda.
+An issue enters development only if it meets the DoR and is closed only if it meets the DoD; the PO checks the former and the Code Reviewer the latter.
 
-**Definition of Ready (antes de `po:ready`):**
+**Definition of Ready (before `po:ready`):**
 
-- [ ] Título en inglés con su `BRV-xxx`, y descripción con el objetivo en una o dos frases.
-- [ ] Requisitos de la especificación citados (`R-SYNC-*`, `R-BR-*`, `R-OB-*`, `R-SEC-*`).
-- [ ] Criterios de aceptación comprobables, cada uno con un resultado observable.
-- [ ] Tests obligatorios listados por nivel (unitario, integración, contrato, E2E).
-- [ ] Dependencias cerradas y fuera de alcance explícito.
-- [ ] Tamaño abarcable en un PR de menos de unas 400 líneas cambiadas, sin contar tests ni fixtures. Si no cabe, se divide.
+- [ ] English title with its `BRV-xxx`, and a description stating the goal in one or two sentences.
+- [ ] Specification requirements cited (`R-SYNC-*`, `R-BR-*`, `R-OB-*`, `R-SEC-*`).
+- [ ] Testable acceptance criteria, each with an observable outcome.
+- [ ] Required tests listed by level (unit, integration, contract, E2E).
+- [ ] Dependencies closed and out-of-scope stated explicitly.
+- [ ] Size fits in a PR of under roughly 400 changed lines, excluding tests and fixtures. If it does not fit, it is split.
 
-**Definition of Done (antes de cerrar):**
+**Definition of Done (before closing):**
 
-- [ ] CI en verde: lint, typecheck, tests, cobertura, gitleaks, CodeQL y auditoría de dependencias.
-- [ ] Todos los tests obligatorios del issue añadidos y pasando; los umbrales de cobertura de su paquete se mantienen.
-- [ ] Cero secretos, datos reales o URLs privadas en el diff.
-- [ ] Logs nuevos sin datos personales (R-SEC-9).
-- [ ] Documentación actualizada si cambia la API, la configuración o el despliegue.
-- [ ] Changeset añadido si el cambio afecta a un paquete publicable.
-- [ ] Revisión del Code Reviewer aprobada y validación final de @raul.
+- [ ] CI green: lint, typecheck, tests, coverage, gitleaks, CodeQL and dependency audit.
+- [ ] All of the issue's required tests added and passing; its package's coverage thresholds hold.
+- [ ] Zero secrets, real data or private URLs in the diff.
+- [ ] New logs free of personal data (R-SEC-9).
+- [ ] Documentation updated if the API, configuration or deployment changes.
+- [ ] Changeset added if the change affects a publishable package.
+- [ ] Code Reviewer review approved and final validation by @raul.
 
-## Convenciones: repositorio, ramas, commits, PRs y CI
+## Conventions: repository, branches, commits, PRs and CI
 
-Un monorepo público en la organización `brevolt` de GitHub, con la rama `main` siempre desplegable y protegida.
+A public monorepo in the `brevolt` GitHub organization, with the `main` branch always deployable and protected.
 
-**Estructura del repositorio:**
+**Repository structure:**
 
 ```
 brevolt/
-  packages/core/          # modelo, normalización, merge, mapeo Markdown (TS puro)
-  packages/contracts/     # esquemas Zod, OpenAPI generado y fixtures JSON compartidas
-  apps/server/            # Fastify + SQLite (Drizzle) + adaptadores
-  apps/dashboard/         # React, servido por el servidor
-  apps/obsidian-plugin/   # plugin de Obsidian
-  apps/bridge-macos/      # app Swift (Xcode, SwiftPM)
-  spikes/                 # código de la fase 0, nunca importado por producción
-  docs/adr/               # decisiones de arquitectura
+  packages/core/          # model, normalization, merge, Markdown mapping (pure TS)
+  packages/contracts/     # Zod schemas, generated OpenAPI and shared JSON fixtures
+  apps/server/            # Fastify + SQLite (Drizzle) + adapters
+  apps/dashboard/         # React, served by the server
+  apps/obsidian-plugin/   # Obsidian plugin
+  apps/bridge-macos/      # Swift app (Xcode, SwiftPM)
+  spikes/                 # phase 0 code, never imported by production
+  docs/adr/               # architecture decisions
   deploy/                 # docker-compose.yml, .env.example
 ```
 
-**Ramas y commits:**
+**Branches and commits:**
 
-- Ramas `feat/BRV-023-contacts-api`, `fix/BRV-023-...`, `chore/...`, `spike/...`, creadas desde `main`.
-- Commits con Conventional Commits (`feat(server): add contacts PATCH with If-Match`) y firmados.
-- Squash merge; el título del PR es el mensaje final y cita `BRV-xxx`.
+- Branches `feat/BRV-023-contacts-api`, `fix/BRV-023-...`, `chore/...`, `spike/...`, created from `main`.
+- Commits follow Conventional Commits (`feat(server): add contacts PATCH with If-Match`) and are signed.
+- Squash merge; the PR title is the final message and cites `BRV-xxx`.
 
-**Pull requests.** Plantilla obligatoria con: issue enlazado, requisitos `R-xxx` cubiertos, cómo probarlo, tests añadidos, impacto en seguridad o datos personales, y capturas para cambios del dashboard.
+**Pull requests.** Mandatory template with: linked issue, `R-xxx` requirements covered, how to test it, tests added, security or personal-data impact, and screenshots for dashboard changes.
 
-**CI (GitHub Actions), bloqueante en todos los PRs:**
+**CI (GitHub Actions), blocking on every PR:**
 
-| Job | Qué comprueba | Bloquea si |
+| Job | What it checks | Blocks if |
 | --- | --- | --- |
-| `lint` | ESLint y Prettier (TS); SwiftLint (bridge) | Cualquier error |
-| `typecheck` | `tsc --noEmit` en modo estricto en todo el monorepo | Cualquier error |
-| `test` | Vitest con cobertura por paquete | Falla un test o baja de umbral |
-| `test-swift` | `swift test` del bridge en runner macOS | Falla un test |
-| `e2e` | Playwright contra servidor y dashboard reales con base de datos temporal | Falla un escenario |
-| `secrets` | gitleaks sobre el diff y el historial | Cualquier hallazgo |
-| `codeql` | Análisis estático de TS y Swift | Alerta alta o crítica |
-| `audit` | `pnpm audit --prod` | Vulnerabilidad alta o crítica sin excepción documentada |
-| `docker` | Build de la imagen y escaneo con Trivy | Vulnerabilidad crítica |
+| `lint` | ESLint and Prettier (TS); SwiftLint (bridge) | Any error |
+| `typecheck` | `tsc --noEmit` in strict mode across the whole monorepo | Any error |
+| `test` | Vitest with per-package coverage | A test fails or coverage drops below threshold |
+| `test-swift` | Bridge `swift test` on a macOS runner | A test fails |
+| `e2e` | Playwright against the real server and dashboard with a temporary database | A scenario fails |
+| `secrets` | gitleaks over the diff and the history | Any finding |
+| `codeql` | Static analysis of TS and Swift | High or critical alert |
+| `audit` | `pnpm audit --prod` | High or critical vulnerability without a documented exception |
+| `docker` | Image build and Trivy scan | Critical vulnerability |
 
-El job `e2e` y el escaneo de la imagen se activan a partir de la fase 2; `test-swift`, a partir de la fase 3.
+The `e2e` job and the image scan are enabled from phase 2; `test-swift`, from phase 3.
 
-## Estrategia de tests
+## Testing strategy
 
-El riesgo principal es perder o corromper contactos, así que el grueso de los tests va al núcleo de fusión y normalización, que es TypeScript puro y se prueba rápido y sin red; los extremos (Contactos, Google, Obsidian) se aislan detrás de interfaces con dobles de prueba.
+The main risk is losing or corrupting contacts, so the bulk of the tests goes to the merge and normalization core, which is pure TypeScript and is tested quickly and without network; the edges (Contacts, Google, Obsidian) are isolated behind interfaces with test doubles.
 
-| Nivel | Qué cubre | Herramienta | Umbral o regla |
+| Level | What it covers | Tool | Threshold or rule |
 | --- | --- | --- | --- |
-| Unitario | `core`: normalización, `merge`, mapeo Markdown; lógica de servidor y plugin | Vitest | `core` ≥ 95 % líneas y ramas; resto ≥ 80 % |
-| Propiedades | Invariantes de `merge` y del mapeo Markdown | fast-check, 1.000 ejecuciones por propiedad en CI | Obligatorio en todo cambio de `core` |
-| Contrato | API pública y contrato `bridge/*` | Esquemas Zod + OpenAPI generado; fixtures JSON en `packages/contracts` que consumen TS y Swift | Un cambio de contrato sin actualizar fixtures rompe CI |
-| Integración de servidor | Rutas HTTP con SQLite real en fichero temporal; migraciones | Vitest + `fastify.inject` | Cada endpoint: caso feliz, validación, auth y concurrencia |
-| Integración de adaptadores | Adaptador de Google contra respuestas grabadas | Vitest + MSW con fixtures sintéticas | Incluye `syncToken` caducado y etag obsoleto |
-| Swift | Mapeo `CNContact` ↔ contrato, cliente HTTP, lógica de cola | XCTest con un `ContactStore` falso detrás de un protocolo | Sin acceso real a Contactos en CI |
-| E2E del dashboard | Flujos de usuario en el navegador | Playwright | Cada fase añade sus flujos |
-| E2E de sistema | Hub completo con clientes simulados (script que imita al bridge, servidor falso de Google, vault temporal) | Vitest en `apps/server/e2e` | Escenarios de ida y vuelta, conflicto y bucle |
-| Manual en dispositivo | Bridge contra Contactos reales de una cuenta de prueba; plugin en Obsidian de escritorio y móvil | Checklist en el issue | Obligatorio para cerrar fases 3 y 4 |
-| Soak | Sistema completo funcionando sin intervención | Entorno de staging | 24 h en fase 3, 7 días en fase 5 |
+| Unit | `core`: normalization, `merge`, Markdown mapping; server and plugin logic | Vitest | `core` ≥ 95 % lines and branches; rest ≥ 80 % |
+| Properties | `merge` and Markdown mapping invariants | fast-check, 1,000 runs per property in CI | Mandatory on every `core` change |
+| Contract | Public API and `bridge/*` contract | Zod schemas + generated OpenAPI; JSON fixtures in `packages/contracts` consumed by TS and Swift | A contract change without updated fixtures breaks CI |
+| Server integration | HTTP routes with real SQLite in a temporary file; migrations | Vitest + `fastify.inject` | Every endpoint: happy path, validation, auth and concurrency |
+| Adapter integration | Google adapter against recorded responses | Vitest + MSW with synthetic fixtures | Includes expired `syncToken` and stale etag |
+| Swift | `CNContact` ↔ contract mapping, HTTP client, queue logic | XCTest with a fake `ContactStore` behind a protocol | No real Contacts access in CI |
+| Dashboard E2E | User flows in the browser | Playwright | Each phase adds its flows |
+| System E2E | Full hub with simulated clients (script that mimics the bridge, fake Google server, temporary vault) | Vitest in `apps/server/e2e` | Round-trip, conflict and loop scenarios |
+| Manual on device | Bridge against the real Contacts app of a test account; plugin in Obsidian desktop and mobile | Checklist in the issue | Mandatory to close phases 3 and 4 |
+| Soak | Full system running unattended | Staging environment | 24 h in phase 3, 7 days in phase 5 |
 
-**Invariantes que deben tener test de propiedades:**
+**Invariants that must have property tests:**
 
-- **Idempotencia:** `merge` aplicado dos veces da el mismo resultado que una vez.
-- **Un solo lado gana:** si solo cambió un lado, el resultado es ese lado, sin conflictos.
-- **Sin pérdida:** ningún valor de un campo multivalor desaparece salvo que un lado lo haya borrado explícitamente.
-- **Simetría de conflictos:** intercambiar hub y externo produce los mismos conflictos.
-- **Ida y vuelta del Markdown:** `parse(render(contact)) == contact`, y el cuerpo de la nota se conserva byte a byte.
-- **Normalización estable:** `normalize(normalize(x)) == normalize(x)`.
+- **Idempotence:** applying `merge` twice gives the same result as applying it once.
+- **One side wins:** if only one side changed, the result is that side, with no conflicts.
+- **No loss:** no value of a multi-value field disappears unless one side explicitly deleted it.
+- **Conflict symmetry:** swapping hub and external produces the same conflicts.
+- **Markdown round trip:** `parse(render(contact)) == contact`, and the note body is preserved byte for byte.
+- **Stable normalization:** `normalize(normalize(x)) == normalize(x)`.
 
-**Datos de prueba.** Solo sintéticos, generados con un generador con semilla (`packages/contracts/fixtures/generate.ts`) que cubra nombres con acentos y emojis, teléfonos de varios países y mal formados, cumpleaños sin año y contactos sin nombre. Las respuestas grabadas de Google se anonimizan antes de entrar al repositorio.
+**Test data.** Synthetic only, produced by a seeded generator (`packages/contracts/fixtures/generate.ts`) that covers names with accents and emojis, phone numbers from several countries and malformed ones, birthdays without a year and contacts without a name. Recorded Google responses are anonymized before entering the repository.
 
-**Regresiones.** Todo bug de sincronización se corrige primero con un test que lo reproduce, añadido al corpus de fixtures de `merge`.
+**Regressions.** Every sync bug is fixed by first adding a test that reproduces it to the `merge` fixture corpus.
 
-## Entornos y cuentas de prueba
+## Environments and test accounts
 
-Tres entornos y un juego de cuentas de prueba separados de los datos reales de @raul; ningún agente tiene credenciales de producción.
+Three environments and a set of test accounts kept separate from @raul's real data; no agent has production credentials.
 
-| Entorno | Dónde | Datos | Quién lo usa |
+| Environment | Where | Data | Who uses it |
 | --- | --- | --- | --- |
-| Local / CI | Máquina del agente y GitHub Actions | Fixtures sintéticas, base de datos temporal | Developer, CI |
-| Staging | Homelab, contenedor `brevolt-staging` con su propio volumen | Cuentas de prueba (abajo) | @raul y agentes en issues con prueba manual |
-| Producción | Homelab, contenedor `brevolt` | Contactos reales | Solo @raul, a partir de cerrar la fase 5 |
+| Local / CI | Agent's machine and GitHub Actions | Synthetic fixtures, temporary database | Developer, CI |
+| Staging | Homelab, `brevolt-staging` container with its own volume | Test accounts (below) | @raul and agents on issues with manual testing |
+| Production | Homelab, `brevolt` container | Real contacts | Only @raul, once phase 5 is closed |
 
-**Cuentas de prueba (las crea @raul antes de la fase 0):**
+**Test accounts (created by @raul before phase 0):**
 
-- [ ] Apple ID de pruebas, iniciado en un usuario de macOS dedicado (o una máquina virtual) y en un iPhone o simulador de pruebas, con unos 200 contactos sintéticos importados desde el generador.
-- [ ] Cuenta de Google de pruebas con su propio proyecto en Google Cloud y cliente OAuth, y los mismos contactos sintéticos con variaciones para probar emparejamiento.
-- [ ] Vault de Obsidian de pruebas, sincronizado entre escritorio y móvil.
-- [ ] Secretos de staging (client ID y secret de Google, `ENCRYPTION_KEY`, tokens) solo en el gestor de secretos del homelab; los agentes reciben acceso al entorno de staging, nunca los valores.
+- [ ] Test Apple ID, signed in on a dedicated macOS user (or a virtual machine) and on a test iPhone or simulator, with about 200 synthetic contacts imported from the generator.
+- [ ] Test Google account with its own Google Cloud project and OAuth client, and the same synthetic contacts with variations to test matching.
+- [ ] Test Obsidian vault, synced between desktop and mobile.
+- [ ] Staging secrets (Google client ID and secret, `ENCRYPTION_KEY`, tokens) only in the homelab secrets manager; agents get access to the staging environment, never the values.
 
-## Fase 0 — Spikes de riesgo
+## Phase 0 — Risk spikes
 
-Cuatro spikes que validan lo que podría tumbar el proyecto antes de escribir código de producción. Su código vive en `spikes/` y su resultado es un informe y un ADR, no funcionalidad.
+Four spikes that validate whatever could sink the project before any production code is written. Their code lives in `spikes/` and their output is a report and an ADR, not functionality.
 
-**Puerta G0:** los tres spikes técnicos tienen informe con resultado claro (funciona, funciona con limitaciones o no funciona) y el ADR de stack está aprobado. Si un spike falla, @raul decide si se ajusta la especificación antes de seguir.
+**Gate G0:** the three technical spikes have a report with a clear outcome (works, works with limitations, or does not work) and the stack ADR is approved. If a spike fails, @raul decides whether the specification is adjusted before continuing.
 
 ### BRV-001 · Spike: Contacts change history on macOS
 
-Comprobar que un CLI en Swift puede leer cambios de Contactos de forma incremental y excluir sus propias escrituras. Requisitos: R-BR-1, R-BR-3, R-BR-5.
+Verify that a Swift CLI can read changes from the Contacts app incrementally and exclude its own writes. Requirements: R-BR-1, R-BR-3, R-BR-5.
 
-- Lee altas, modificaciones y borrados con `CNChangeHistoryFetchRequest` desde un token guardado.
-- Escribe con `transactionAuthor` y demuestra que `excludedTransactionAuthors` las oculta del historial.
-- Mide el tiempo de una lectura completa de 1.000 contactos sintéticos.
-- Documenta qué pasa cuando el token caduca y cómo se detecta.
+- Reads additions, modifications and deletions with `CNChangeHistoryFetchRequest` from a saved token.
+- Writes with `transactionAuthor` and shows that `excludedTransactionAuthors` hides them from the history.
+- Measures the time of a full read of 1,000 synthetic contacts.
+- Documents what happens when the token expires and how it is detected.
 
-**Entregable:** `spikes/contacts-history/` y `docs/spikes/001-contacts-history.md` con resultados y fragmentos de código reutilizables.
+**Deliverable:** `spikes/contacts-history/` and `docs/spikes/001-contacts-history.md` with results and reusable code snippets.
 
 ### BRV-002 · Spike: Google People API sync
 
-Comprobar el ciclo completo con People API en la cuenta de prueba. Requisitos: R-SYNC-5.
+Verify the full cycle with the People API on the test account. Requirements: R-SYNC-5.
 
-- OAuth con el cliente propio y obtención de refresh token.
-- Listado inicial con `syncToken` y listado incremental tras cambiar contactos desde la web de Google.
-- Actualización con etag y comportamiento documentado con un etag obsoleto.
-- Comportamiento documentado de un `syncToken` caducado y de los límites de cuota.
+- OAuth with the user's own client and obtaining a refresh token.
+- Initial listing with `syncToken` and incremental listing after changing contacts from the Google web UI.
+- Update with etag and documented behavior with a stale etag.
+- Documented behavior of an expired `syncToken` and of quota limits.
 
-**Entregable:** `spikes/google-people/` y `docs/spikes/002-google-people.md`, incluidas respuestas de ejemplo anonimizadas para usar como fixtures.
+**Deliverable:** `spikes/google-people/` and `docs/spikes/002-google-people.md`, including anonymized sample responses to use as fixtures.
 
 ### BRV-003 · Spike: Obsidian plugin network and frontmatter
 
-Comprobar que un plugin mínimo puede hablar con un servidor local y editar frontmatter sin tocar el cuerpo. Requisitos: R-OB-2, R-OB-3.
+Verify that a minimal plugin can talk to a local server and edit frontmatter without touching the body. Requirements: R-OB-2, R-OB-3.
 
-- `requestUrl` contra un servidor HTTP local funciona en escritorio y en móvil (a través de Tailscale).
-- `processFrontMatter` modifica claves sin alterar el cuerpo, verificado comparando bytes.
-- Documenta dónde guarda Obsidian los ajustes del plugin y si hay almacén de secretos disponible (R-SEC-12).
+- `requestUrl` against a local HTTP server works on desktop and on mobile (through Tailscale).
+- `processFrontMatter` modifies keys without altering the body, verified by comparing bytes.
+- Documents where Obsidian stores plugin settings and whether a secrets store is available (R-SEC-12).
 
-**Entregable:** `spikes/obsidian-plugin/` y `docs/spikes/003-obsidian-plugin.md`.
+**Deliverable:** `spikes/obsidian-plugin/` and `docs/spikes/003-obsidian-plugin.md`.
 
 ### BRV-004 · ADR: stack and repository layout
 
-Registrar en `docs/adr/` las decisiones de stack: Node 22 LTS, TypeScript estricto, Fastify, SQLite con Drizzle, Zod, React para el dashboard, pnpm workspaces, Vitest, fast-check, Playwright, SwiftUI para el bridge y licencia.
+Record the stack decisions in `docs/adr/`: Node 22 LTS, strict TypeScript, Fastify, SQLite with Drizzle, Zod, React for the dashboard, pnpm workspaces, Vitest, fast-check, Playwright, SwiftUI for the bridge, and license.
 
-- Un ADR por decisión, con alternativas descartadas y motivo.
-- La licencia (MIT o AGPL-3.0) queda decidida por @raul en el ADR correspondiente.
-- Depende de: BRV-001, BRV-002, BRV-003 (sus hallazgos pueden cambiar decisiones).
+- One ADR per decision, with rejected alternatives and the reason.
+- The license (MIT or AGPL-3.0) is decided by @raul in the corresponding ADR.
+- Depends on: BRV-001, BRV-002, BRV-003 (their findings may change decisions).
 
-## Fase 1 — Fundaciones y núcleo
+## Phase 1 — Foundations and core
 
-El repositorio con su seguridad desde el primer commit y el paquete `core`, que concentra la lógica de mayor riesgo y se prueba sin red ni sistemas externos.
+The repository with security from the first commit, and the `core` package, which concentrates the highest-risk logic and is tested without network or external systems.
 
-**Puerta G1:** CI completo en verde y bloqueante; `core` con cobertura ≥ 95 % y las seis invariantes con tests de propiedades; las cuatro filas de la tabla de fusión de la especificación cubiertas por fixtures.
+**Gate G1:** full CI green and blocking; `core` with coverage ≥ 95 % and the six invariants covered by property tests; the four rows of the specification's merge table covered by fixtures.
 
 ### BRV-010 · Bootstrap monorepo
 
-Monorepo pnpm con la estructura de este documento, TypeScript estricto, ESLint, Prettier, Vitest y Changesets. Requisitos: R-SEC-1, R-SEC-2, R-SEC-15. Depende de: BRV-004.
+pnpm monorepo with the structure in this document, strict TypeScript, ESLint, Prettier, Vitest and Changesets. Requirements: R-SEC-1, R-SEC-2, R-SEC-15. Depends on: BRV-004.
 
-- **Criterios:** `pnpm install && pnpm test` funciona en limpio; `README`, `CONTRIBUTING`, `SECURITY.md`, `LICENSE`, `.env.example` solo con marcadores y `.gitignore` que excluye `.env*` salvo el ejemplo.
-- **Tests:** un test de humo por paquete para que la tubería de tests esté viva.
+- **Criteria:** `pnpm install && pnpm test` works from a clean checkout; `README`, `CONTRIBUTING`, `SECURITY.md`, `LICENSE`, `.env.example` with placeholders only, and a `.gitignore` that excludes `.env*` except the example.
+- **Tests:** one smoke test per package so the test pipeline is alive.
 
 ### BRV-011 · CI pipeline and repository security
 
-Workflows de GitHub Actions con los jobs `lint`, `typecheck`, `test`, `secrets`, `codeql` y `audit`, y configuración de seguridad del repositorio. Requisitos: R-SEC-5, R-SEC-13, R-SEC-15. Depende de: BRV-010.
+GitHub Actions workflows with the `lint`, `typecheck`, `test`, `secrets`, `codeql` and `audit` jobs, and repository security settings. Requirements: R-SEC-5, R-SEC-13, R-SEC-15. Depends on: BRV-010.
 
-- **Criterios:** todos los jobs bloqueantes en PRs a `main`; gitleaks también como hook de pre-commit; Renovate configurado; rama protegida con revisión obligatoria y commits firmados; secret scanning con push protection activo.
-- **Tests:** un PR de prueba con un secreto falso es bloqueado por `secrets` (se documenta y se cierra sin merge).
+- **Criteria:** all jobs blocking on PRs to `main`; gitleaks also as a pre-commit hook; Renovate configured; protected branch with mandatory review and signed commits; secret scanning with push protection enabled.
+- **Tests:** a test PR with a fake secret is blocked by `secrets` (documented and closed without merging).
 
 ### BRV-012 · Core domain model and schemas
 
-Tipos y esquemas Zod del contacto, campos multivalor, etiquetas, campos propios, `external_link` y snapshot de base, en `packages/core` y `packages/contracts`. Requisitos: modelo de datos de la especificación. Depende de: BRV-010.
+Zod types and schemas for the contact, multi-value fields, tags, custom fields, `external_link` and base snapshot, in `packages/core` and `packages/contracts`. Requirements: the specification's data model. Depends on: BRV-010.
 
-- **Criterios:** un único origen de tipos (inferidos de Zod) usado por servidor y plugin; los UUID son v7.
-- **Tests:** validación de casos válidos e inválidos para cada esquema.
+- **Criteria:** a single source of types (inferred from Zod) used by server and plugin; UUIDs are v7.
+- **Tests:** validation of valid and invalid cases for each schema.
 
 ### BRV-013 · Core normalization
 
-Normalización de teléfonos (E.164 con libphonenumber-js y región por defecto), emails, fechas con y sin año, y vocabulario de etiquetas con traductores para Apple, Google y vCard. Depende de: BRV-012.
+Normalization of phone numbers (E.164 with libphonenumber-js and a default region), emails, dates with and without year, and a label vocabulary with translators for Apple, Google and vCard. Depends on: BRV-012.
 
-- **Criterios:** un teléfono no parseable se conserva tal cual con la marca `unparsed`; todas las etiquetas de Apple y Google documentadas en los spikes tienen traducción de ida y vuelta.
-- **Tests:** unitarios con teléfonos de al menos 10 países y formatos raros; propiedad de normalización estable.
+- **Criteria:** an unparseable phone number is kept as is with the `unparsed` flag; every Apple and Google label documented in the spikes has a round-trip translation.
+- **Tests:** unit tests with phone numbers from at least 10 countries and odd formats; stable normalization property.
 
 ### BRV-014 · Core merge: scalar fields
 
-Función pura `merge(base, hub, external)` para campos escalares (nombre, empresa, cargo, cumpleaños). Requisitos: R-SYNC-1. Depende de: BRV-013.
+Pure function `merge(base, hub, external)` for scalar fields (name, company, job title, birthday). Requirements: R-SYNC-1. Depends on: BRV-013.
 
-- **Criterios:** devuelve `hubPatch`, `externalPatch` y `conflicts` según la tabla de la especificación; sin efectos secundarios ni E/S.
-- **Tests:** fixtures para las cuatro filas de la tabla; propiedades de idempotencia, un solo lado gana y simetría de conflictos.
+- **Criteria:** returns `hubPatch`, `externalPatch` and `conflicts` according to the specification's table; no side effects or I/O.
+- **Tests:** fixtures for the four rows of the table; idempotence, one-side-wins and conflict-symmetry properties.
 
 ### BRV-015 · Core merge: multi-value fields and deletions
 
-Extiende `merge` a teléfonos, emails, direcciones y URLs como conjuntos con clave `kind` + `normalized`, cambios de etiqueta y borrado de contacto. Requisitos: R-SYNC-1 y reglas de borrado. Depende de: BRV-014.
+Extends `merge` to phone numbers, emails, addresses and URLs as sets keyed by `kind` + `normalized`, label changes and contact deletion. Requirements: R-SYNC-1 and deletion rules. Depends on: BRV-014.
 
-- **Criterios:** altas y bajas de ambos lados se combinan; un borrado externo produce la marca `deleted-upstream` y nunca un borrado directo.
-- **Tests:** fixtures de altas y bajas cruzadas y de cambio de etiqueta; propiedad de sin pérdida.
+- **Criteria:** additions and removals from both sides are combined; an external deletion produces the `deleted-upstream` flag and never a direct deletion.
+- **Tests:** fixtures for crossed additions and removals and for label changes; no-loss property.
 
 ### BRV-016 · Synthetic data generator and fixture corpus
 
-Generador con semilla en `packages/contracts/fixtures` y corpus inicial de casos de fusión. Depende de: BRV-012.
+Seeded generator in `packages/contracts/fixtures` and an initial corpus of merge cases. Depends on: BRV-012.
 
-- **Criterios:** genera contactos con acentos, emojis, teléfonos de varios países y mal formados, cumpleaños sin año y contactos sin nombre; exporta a vCard para importar en las cuentas de prueba.
-- **Tests:** la misma semilla produce exactamente la misma salida.
+- **Criteria:** generates contacts with accents, emojis, phone numbers from several countries and malformed ones, birthdays without a year and contacts without a name; exports to vCard for import into the test accounts.
+- **Tests:** the same seed produces exactly the same output.
 
-## Fase 2 — Servidor y dashboard
+## Phase 2 — Server and dashboard
 
-El servidor desplegable con la API de contactos, la seguridad de base y un dashboard para ver y editar contactos a mano; todavía sin ningún sistema externo conectado.
+The deployable server with the contacts API, baseline security and a dashboard to view and edit contacts by hand; still without any external system connected.
 
-**Puerta G2:** Brevolt corre en staging desde la imagen publicada; crear, editar, deshacer y exportar contactos funciona desde el dashboard; los E2E de Playwright pasan; un backup se restaura con éxito en un ensayo documentado.
+**Gate G2:** Brevolt runs in staging from the published image; creating, editing, undoing and exporting contacts works from the dashboard; the Playwright E2E tests pass; a backup is successfully restored in a documented drill.
 
 ### BRV-020 · Database schema and migrations
 
-Esquema SQLite con Drizzle para todas las tablas de la especificación, en modo WAL. Depende de: BRV-012.
+SQLite schema with Drizzle for all the tables in the specification, in WAL mode. Depends on: BRV-012.
 
-- **Criterios:** migraciones versionadas y aplicadas al arrancar; copia automática de la base antes de cada migración; restricción única en (`system`, `external_id`).
-- **Tests:** integración que aplica todas las migraciones sobre una base vacía y sobre una con datos de la versión anterior.
+- **Criteria:** versioned migrations applied on startup; automatic database copy before each migration; unique constraint on (`system`, `external_id`).
+- **Tests:** integration test that applies all migrations to an empty database and to one with data from the previous version.
 
 ### BRV-021 · Config, secrets loading and logging
 
-Carga de configuración validada con Zod desde variables de entorno y variantes `*_FILE`, y logger estructurado con redacción. Requisitos: R-SEC-1, R-SEC-4, R-SEC-9. Depende de: BRV-010.
+Configuration loading validated with Zod from environment variables and `*_FILE` variants, and a structured logger with redaction. Requirements: R-SEC-1, R-SEC-4, R-SEC-9. Depends on: BRV-010.
 
-- **Criterios:** el proceso no arranca si falta un secreto obligatorio o `ENCRYPTION_KEY` tiene menos de 32 bytes, con un mensaje claro y sin mostrar valores; los logs redactan teléfonos, emails, nombres y tokens.
-- **Tests:** unitarios de cada caso de configuración inválida; test que registra un contacto completo y comprueba que no aparece ningún dato personal en la salida.
+- **Criteria:** the process does not start if a mandatory secret is missing or `ENCRYPTION_KEY` is shorter than 32 bytes, with a clear message and without showing values; logs redact phone numbers, emails, names and tokens.
+- **Tests:** unit tests for each invalid configuration case; a test that logs a full contact and checks that no personal data appears in the output.
 
 ### BRV-022 · Client tokens: auth, scopes and rate limiting
 
-Tokens de cliente con hash, alcance (`bridge`, `obsidian`), caducidad por inactividad y revocación; rate limiting en autenticación. Requisitos: R-SEC-7, R-SEC-8. Depende de: BRV-020, BRV-021.
+Hashed client tokens with scope (`bridge`, `obsidian`), inactivity expiry and revocation; rate limiting on authentication. Requirements: R-SEC-7, R-SEC-8. Depends on: BRV-020, BRV-021.
 
-- **Criterios:** el valor del token se muestra una sola vez al crearlo; un token `bridge` recibe 403 fuera de `/v1/bridge/*` y viceversa; tras 90 días sin uso deja de funcionar.
-- **Tests:** integración por cada combinación de alcance y ruta; test de rate limiting; test de comparación en tiempo constante.
+- **Criteria:** the token value is shown only once when created; a `bridge` token gets 403 outside `/v1/bridge/*` and vice versa; after 90 days unused it stops working.
+- **Tests:** integration test for each scope and route combination; rate-limiting test; constant-time comparison test.
 
 ### BRV-023 · Contacts API with versioning and change log
 
-Endpoints `GET/POST/PATCH/DELETE /v1/contacts` con versión por contacto, `If-Match` y escritura en `change_log`. Depende de: BRV-022.
+`GET/POST/PATCH/DELETE /v1/contacts` endpoints with per-contact version, `If-Match` and writes to `change_log`. Depends on: BRV-022.
 
-- **Criterios:** `PATCH` sin `If-Match` o con versión antigua devuelve 428 o 412; `DELETE` hace soft delete; cada escritura deja filas en `change_log` con `actor` y `operation_id`.
-- **Tests:** integración con caso feliz, validación, auth y dos `PATCH` concurrentes sobre la misma versión.
+- **Criteria:** `PATCH` without `If-Match` or with an old version returns 428 or 412; `DELETE` does a soft delete; every write leaves rows in `change_log` with `actor` and `operation_id`.
+- **Tests:** integration with happy path, validation, auth and two concurrent `PATCH` requests on the same version.
 
 ### BRV-024 · Undo, export and health
 
-`POST /v1/changes/:operationId/undo`, `GET /v1/export?format=vcf|json` y `GET /healthz`. Depende de: BRV-023.
+`POST /v1/changes/:operationId/undo`, `GET /v1/export?format=vcf|json` and `GET /healthz`. Depends on: BRV-023.
 
-- **Criterios:** deshacer revierte exactamente una operación y queda registrado como operación nueva; la exportación vCard importa sin errores en Contactos de macOS (comprobación manual) y la JSON valida contra el esquema.
-- **Tests:** integración de deshacer tras alta, edición y borrado; ida y vuelta de la exportación JSON.
+- **Criteria:** undo reverts exactly one operation and is recorded as a new operation; the vCard export imports without errors into the macOS Contacts app (manual check) and the JSON export validates against the schema.
+- **Tests:** integration of undo after creation, edit and deletion; JSON export round trip.
 
 ### BRV-025 · Dashboard authentication
 
-Acceso al dashboard con un único usuario administrador: contraseña con hash argon2id fijada en el primer arranque, sesión en cookie `HttpOnly`, `Secure` y `SameSite=Strict`, y protección CSRF. Depende de: BRV-022.
+Dashboard access with a single admin user: password hashed with argon2id set on first startup, session in an `HttpOnly`, `Secure` and `SameSite=Strict` cookie, and CSRF protection. Depends on: BRV-022.
 
-- **Criterios:** sin sesión, todas las rutas del dashboard redirigen al login; cerrar sesión invalida la cookie en el servidor.
-- **Tests:** integración de login correcto e incorrecto, caducidad de sesión y CSRF; E2E de login.
+- **Criteria:** without a session, every dashboard route redirects to the login; logging out invalidates the cookie on the server.
+- **Tests:** integration of correct and incorrect login, session expiry and CSRF; login E2E.
 
 ### BRV-026 · Dashboard: contacts list and detail
 
-Lista con búsqueda, ficha completa y edición de campos vCard y enriquecimiento (nota Markdown, etiquetas, campos propios), con historial y deshacer. Depende de: BRV-024, BRV-025.
+List with search, full contact card and editing of vCard and enrichment fields (Markdown note, tags, custom fields), with history and undo. Depends on: BRV-024, BRV-025.
 
-- **Criterios:** usable con 5.000 contactos sintéticos sin bloquear la interfaz; editar respeta la versión y muestra un aviso si alguien cambió el contacto entretanto.
-- **Tests:** E2E de buscar, crear, editar, deshacer y borrar.
+- **Criteria:** usable with 5,000 synthetic contacts without blocking the UI; editing respects the version and shows a warning if someone changed the contact in the meantime.
+- **Tests:** E2E of search, create, edit, undo and delete.
 
 ### BRV-027 · Dashboard: settings and client tokens
 
-Pantalla de ajustes para crear y revocar tokens de cliente, región por defecto de teléfonos y estado de cada sistema conectado. Depende de: BRV-025.
+Settings screen to create and revoke client tokens, set the default phone region and see the status of each connected system. Depends on: BRV-025.
 
-- **Criterios:** el token se muestra una vez con botón de copiar y nunca vuelve a mostrarse; la lista muestra alcance, nombre y `last_seen`.
-- **Tests:** E2E de crear un token, usarlo contra la API y revocarlo.
+- **Criteria:** the token is shown once with a copy button and is never shown again; the list shows scope, name and `last_seen`.
+- **Tests:** E2E of creating a token, using it against the API and revoking it.
 
 ### BRV-028 · Docker image, compose and backups
 
-Imagen mínima con usuario no root y sistema de ficheros de solo lectura salvo el volumen de datos, `deploy/docker-compose.yml`, backup diario con retención de 30 días, y workflow de release con firma cosign y SBOM. Requisitos: R-SEC-14 y backups de la especificación. Depende de: BRV-021.
+Minimal image with a non-root user and a read-only file system except for the data volume, `deploy/docker-compose.yml`, daily backup with 30-day retention, and a release workflow with cosign signing and SBOM. Requirements: R-SEC-14 and the specification's backups. Depends on: BRV-021.
 
-- **Criterios:** `docker compose up` con un `.env` mínimo arranca un servidor funcional; el escaneo con Trivy no tiene vulnerabilidades críticas; existe una guía de restauración probada.
-- **Tests:** job de CI que levanta el compose y consulta `/healthz`; ensayo de restauración documentado en el issue.
+- **Criteria:** `docker compose up` with a minimal `.env` starts a working server; the Trivy scan has no critical vulnerabilities; a tested restore guide exists.
+- **Tests:** CI job that brings up the compose and queries `/healthz`; restore drill documented in the issue.
 
-## Fase 3 — Puente macOS
+## Phase 3 — macOS bridge
 
-El primer sistema externo: la orquestación de sincronización en el servidor, las bandejas de decisiones del dashboard y la app de barra de menú que conecta Contactos.
+The first external system: sync orchestration on the server, the dashboard's decision inboxes and the menu bar app that connects the Contacts app.
 
-**Puerta G3:** con la cuenta de prueba, un cambio hecho en el iPhone llega al hub y uno hecho en el dashboard llega al iPhone, en ambos casos en menos de 2 minutos con el Mac encendido; 24 horas de soak sin bucles, duplicados ni cambios fantasma; conflictos y borrados aparecen solo en el dashboard.
+**Gate G3:** with the test account, a change made on the iPhone reaches the hub and one made in the dashboard reaches the iPhone, in both cases in under 2 minutes with the Mac on; 24 hours of soak without loops, duplicates or phantom changes; conflicts and deletions appear only in the dashboard.
 
 ### BRV-030 · Sync orchestration and bridge endpoints
 
-`POST /v1/bridge/changes`, `GET /v1/bridge/pending` y `POST /v1/bridge/ack`, conectados a `merge`, `external_link`, `sync_base` y la cola de cambios pendientes por cliente. Requisitos: R-SYNC-2, R-SYNC-3, contrato del puente. Depende de: BRV-015, BRV-023.
+`POST /v1/bridge/changes`, `GET /v1/bridge/pending` and `POST /v1/bridge/ack`, wired to `merge`, `external_link`, `sync_base` and the per-client pending changes queue. Requirements: R-SYNC-2, R-SYNC-3, bridge contract. Depends on: BRV-015, BRV-023.
 
-- **Criterios:** reenviar el mismo lote con el mismo `operation_id` no produce cambios; tras un ack, base y `external_link` se actualizan en la misma transacción; un cliente nunca recibe en `pending` sus propios cambios; una instantánea completa se fusiona igual que un lote incremental.
-- **Tests:** contrato con fixtures JSON compartidas; integración de lote duplicado, ack con error y reintento; E2E de sistema con un script que imita al bridge y comprueba que no hay bucle tras 100 ciclos.
+- **Criteria:** resending the same batch with the same `operation_id` produces no changes; after an ack, base and `external_link` are updated in the same transaction; a client never receives its own changes in `pending`; a full snapshot is merged the same way as an incremental batch.
+- **Tests:** contract with shared JSON fixtures; integration of duplicate batch, ack with error and retry; system E2E with a script that mimics the bridge and checks there is no loop after 100 cycles.
 
 ### BRV-031 · Conflicts and proposals model and API
 
-Registro de conflictos, propuestas de fusión de duplicados y borrados `deleted-upstream`, con sus endpoints de listado y resolución. Requisitos: R-SYNC-4, reglas de borrado y duplicados. Depende de: BRV-030.
+Record of conflicts, duplicate merge proposals and `deleted-upstream` deletions, with their list and resolve endpoints. Requirements: R-SYNC-4, deletion and duplicate rules. Depends on: BRV-030.
 
-- **Criterios:** un campo en conflicto no se escribe en ningún sistema hasta resolverse; resolver propaga el valor elegido a todos los sistemas vinculados; aceptar un borrado hace soft delete y lo propaga.
-- **Tests:** integración de los tres tipos de decisión y de sus tres resoluciones posibles (hub, externo, valor manual).
+- **Criteria:** a conflicting field is not written to any system until resolved; resolving propagates the chosen value to all linked systems; accepting a deletion does a soft delete and propagates it.
+- **Tests:** integration of the three decision types and their three possible resolutions (hub, external, manual value).
 
 ### BRV-032 · Dashboard: decisions inbox
 
-Bandeja única en el dashboard para conflictos, propuestas de fusión y borrados, con vista lado a lado de los valores. Depende de: BRV-031, BRV-026.
+Single inbox in the dashboard for conflicts, merge proposals and deletions, with a side-by-side view of the values. Depends on: BRV-031, BRV-026.
 
-- **Criterios:** contador de pendientes visible en la navegación; cada decisión muestra base, hub y externo; resolver no requiere salir de la bandeja.
-- **Tests:** E2E de resolver un conflicto de cada tipo.
+- **Criteria:** pending counter visible in the navigation; each decision shows base, hub and external; resolving does not require leaving the inbox.
+- **Tests:** E2E of resolving one conflict of each type.
 
 ### BRV-033 · Dry-run mode and sync diff view
 
-Modo dry-run por sistema, activo por defecto en la primera conexión, que calcula y muestra en el dashboard lo que se escribiría sin escribir nada. Requisitos: requisito no funcional de seguridad ante fallos. Depende de: BRV-030.
+Per-system dry-run mode, on by default on first connection, that computes and shows in the dashboard what would be written without writing anything. Requirements: non-functional requirement for failure safety. Depends on: BRV-030.
 
-- **Criterios:** con dry-run activo, el bridge no recibe ningún cambio pendiente y el dashboard muestra el diff completo; desactivarlo requiere confirmación explícita.
-- **Tests:** integración que verifica cero escrituras externas en dry-run; E2E de revisar el diff y activar el sync.
+- **Criteria:** with dry-run on, the bridge receives no pending changes and the dashboard shows the full diff; turning it off requires explicit confirmation.
+- **Tests:** integration that verifies zero external writes in dry-run; E2E of reviewing the diff and enabling sync.
 
 ### BRV-034 · Bridge app skeleton
 
-App SwiftUI de barra de menú con ajustes (URL del servidor, token en el Llavero, contenedor de iCloud), estado, "Sincronizar ahora", "Pausar" y arranque al iniciar sesión. Requisitos: R-BR-4, R-SEC-11. Depende de: BRV-004.
+SwiftUI menu bar app with settings (server URL, token in the Keychain, iCloud container), status, "Sync now", "Pause" and launch at login. Requirements: R-BR-4, R-SEC-11. Depends on: BRV-004.
 
-- **Criterios:** el token nunca se escribe en `UserDefaults` ni en ficheros; la app pide acceso a Contactos solo al activar el sync; cliente HTTP que valida el certificado del servidor.
-- **Tests:** XCTest del cliente HTTP contra fixtures del contrato y del almacenamiento del token con un Llavero falso.
+- **Criteria:** the token is never written to `UserDefaults` or to files; the app requests Contacts access only when sync is enabled; HTTP client that validates the server certificate.
+- **Tests:** XCTest of the HTTP client against contract fixtures and of token storage with a fake Keychain.
 
 ### BRV-035 · Bridge: Contacts to server
 
-Lectura incremental con historial de cambios desde el token guardado, normalización al contrato y subida en lotes; instantánea completa si el token deja de ser válido. Requisitos: R-BR-1, R-BR-5, R-BR-6. Depende de: BRV-030, BRV-034.
+Incremental read with change history from the saved token, normalization to the contract and upload in batches; full snapshot if the token is no longer valid. Requirements: R-BR-1, R-BR-5, R-BR-6. Depends on: BRV-030, BRV-034.
 
-- **Criterios:** solo lee el contenedor configurado; reacciona a `CNContactStoreDidChange` en segundos; un fallo de red reintenta con backoff sin perder el token.
-- **Tests:** XCTest del mapeo `CNContact` → contrato con un `ContactStore` falso; checklist manual en el Mac de pruebas con altas, ediciones y borrados desde el iPhone.
+- **Criteria:** reads only the configured container; reacts to `CNContactStoreDidChange` within seconds; a network failure retries with backoff without losing the token.
+- **Tests:** XCTest of the `CNContact` → contract mapping with a fake `ContactStore`; manual checklist on the test Mac with additions, edits and deletions from the iPhone.
 
 ### BRV-036 · Bridge: server to Contacts
 
-Consulta de pendientes cada 60 segundos y bajo demanda, aplicación con `CNSaveRequest` marcada con `transactionAuthor`, y ack por cambio. Requisitos: R-BR-2, R-BR-3. Depende de: BRV-035.
+Polls pending changes every 60 seconds and on demand, applies them with `CNSaveRequest` tagged with `transactionAuthor`, and acks each change. Requirements: R-BR-2, R-BR-3. Depends on: BRV-035.
 
-- **Criterios:** las escrituras propias no vuelven a subirse; un error al guardar un contacto se reporta en su ack sin bloquear el resto del lote; las altas devuelven su identificador local.
-- **Tests:** XCTest de la aplicación de cambios y del ack; checklist manual de ida y vuelta y prueba de bucle durante una hora.
+- **Criteria:** its own writes are not uploaded again; an error saving one contact is reported in its ack without blocking the rest of the batch; additions return their local identifier.
+- **Tests:** XCTest of change application and ack; manual round-trip checklist and a one-hour loop test.
 
 ### BRV-037 · Bridge signing, notarization and release
 
-Workflow que compila, firma, notariza y publica el bridge en GitHub Releases, con certificados solo como secretos de CI. Requisitos: R-SEC-11. Depende de: BRV-036.
+Workflow that builds, signs, notarizes and publishes the bridge to GitHub Releases, with certificates only as CI secrets. Requirements: R-SEC-11. Depends on: BRV-036.
 
-- **Criterios:** el `.dmg` o `.zip` publicado abre sin avisos de Gatekeeper en un Mac limpio; ningún certificado ni contraseña en el repositorio.
-- **Tests:** verificación con `spctl` y `codesign --verify` dentro del workflow.
+- **Criteria:** the published `.dmg` or `.zip` opens without Gatekeeper warnings on a clean Mac; no certificate or password in the repository.
+- **Tests:** verification with `spctl` and `codesign --verify` inside the workflow.
 
-## Fase 4 — Obsidian
+## Phase 4 — Obsidian
 
-El plugin que proyecta los contactos del hub en notas y devuelve lo que se edite en ellas; solo sincroniza, todas las decisiones siguen en el dashboard.
+The plugin that projects the hub's contacts into notes and sends back whatever is edited in them; it only syncs, all decisions still happen in the dashboard.
 
-**Puerta G4:** con el vault de prueba, editar un teléfono en una nota lo cambia en el iPhone de prueba; el cuerpo de las notas no pierde ni un byte en 24 horas de uso; el plugin funciona en escritorio y móvil.
+**Gate G4:** with the test vault, editing a phone number in a note changes it on the test iPhone; the note body does not lose a single byte over 24 hours of use; the plugin works on desktop and mobile.
 
 ### BRV-040 · Core Markdown mapping
 
-Conversión contacto ↔ nota en `packages/core`: frontmatter compatible con VCF Contacts, claves `cf-*`, claves libres y cuerpo. Requisitos: formato de nota de la especificación. Depende de: BRV-015.
+Contact ↔ note conversion in `packages/core`: VCF Contacts-compatible frontmatter, `cf-*` keys, free keys and body. Requirements: the specification's note format. Depends on: BRV-015.
 
-- **Criterios:** las claves vCard, `tags`, claves propias y cuerpo se separan según la tabla de propiedad de campos; claves desconocidas se conservan como campos propios.
-- **Tests:** propiedad de ida y vuelta (`parse(render(c)) == c`); cuerpo conservado byte a byte; compatibilidad con notas de ejemplo de VCF Contacts.
+- **Criteria:** vCard keys, `tags`, custom keys and body are separated according to the field ownership table; unknown keys are kept as custom fields.
+- **Tests:** round-trip property (`parse(render(c)) == c`); body preserved byte for byte; compatibility with VCF Contacts sample notes.
 
 ### BRV-041 · Plugin skeleton and settings
 
-Plugin con ajustes de URL del servidor, API key, carpeta de contactos e intervalo, y botón "Probar conexión". Requisitos: R-OB-8, R-SEC-12. Depende de: BRV-022, BRV-003.
+Plugin with settings for server URL, API key, contacts folder and interval, and a "Test connection" button. Requirements: R-OB-8, R-SEC-12. Depends on: BRV-022, BRV-003.
 
-- **Criterios:** usa el almacén de secretos de Obsidian si el spike BRV-003 confirmó que existe; si no, avisa en los ajustes de que la API key se guarda dentro del vault; solo acepta URLs HTTPS salvo direcciones locales o de Tailscale.
-- **Tests:** unitarios de validación de ajustes y del cliente HTTP con respuestas simuladas.
+- **Criteria:** uses Obsidian's secrets store if spike BRV-003 confirmed it exists; otherwise, warns in the settings that the API key is stored inside the vault; only accepts HTTPS URLs except for local or Tailscale addresses.
+- **Tests:** unit tests of settings validation and of the HTTP client with mocked responses.
 
 ### BRV-042 · Plugin: pull and project notes
 
-Descarga incremental con `updatedSince` al abrir el vault y cada intervalo, y escritura de notas con `processFrontMatter`. Requisitos: R-OB-1, R-OB-3. Depende de: BRV-040, BRV-041.
+Incremental download with `updatedSince` when the vault opens and on every interval, and note writing with `processFrontMatter`. Requirements: R-OB-1, R-OB-3. Depends on: BRV-040, BRV-041.
 
-- **Criterios:** nunca sobrescribe el fichero completo; una nota abierta en el editor no pierde la edición en curso; renombrar un contacto en el hub renombra la nota con el gestor de ficheros (R-OB-7).
-- **Tests:** unitarios con un vault simulado; checklist manual en escritorio y móvil.
+- **Criteria:** never overwrites the whole file; a note open in the editor does not lose the edit in progress; renaming a contact in the hub renames the note through the file manager (R-OB-7).
+- **Tests:** unit tests with a mocked vault; manual checklist on desktop and mobile.
 
 ### BRV-043 · Plugin: push edits
 
-Envío de cambios de claves gestionadas y cuerpo con 3 segundos de espera y `If-Match: cf-version`; reescritura de la nota con el resultado de la fusión si la versión no coincide. Requisitos: R-OB-2. Depende de: BRV-042.
+Sends changes to managed keys and body with a 3-second debounce and `If-Match: cf-version`; rewrites the note with the merge result if the version does not match. Requirements: R-OB-2. Depends on: BRV-042.
 
-- **Criterios:** editar solo el cuerpo no toca las claves gestionadas y viceversa; `cf-id` y `cf-version` editados a mano se restauran y no se envían.
-- **Tests:** unitarios de debounce y de versión antigua; E2E de sistema con vault temporal que edita una nota y comprueba el cambio en el hub.
+- **Criteria:** editing only the body does not touch the managed keys and vice versa; `cf-id` and `cf-version` edited by hand are restored and not sent.
+- **Tests:** unit tests of debounce and of an old version; system E2E with a temporary vault that edits a note and checks the change in the hub.
 
 ### BRV-044 · Plugin: new notes, deletions and renames
 
-Nota nueva sin `cf-id` en la carpeta crea un contacto; borrar una nota crea una propuesta de borrado; renombrar una nota no cambia el contacto. Requisitos: R-OB-4, R-OB-5, R-OB-7. Depende de: BRV-043, BRV-031.
+A new note without `cf-id` in the folder creates a contact; deleting a note creates a deletion proposal; renaming a note does not change the contact. Requirements: R-OB-4, R-OB-5, R-OB-7. Depends on: BRV-043, BRV-031.
 
-- **Criterios:** la propuesta de borrado aparece en la bandeja del dashboard y la nota se vuelve a crear si se rechaza.
-- **Tests:** unitarios de cada evento del vault; E2E de sistema de alta y de borrado rechazado.
+- **Criteria:** the deletion proposal appears in the dashboard inbox and the note is recreated if the proposal is rejected.
+- **Tests:** unit tests for each vault event; system E2E of creation and of a rejected deletion.
 
 ### BRV-045 · Plugin: pending conflict notice
 
-Si un contacto tiene una decisión pendiente, la nota muestra un aviso de solo lectura con enlace al dashboard y sus claves gestionadas no se envían. Requisitos: R-OB-6. Depende de: BRV-043, BRV-031.
+If a contact has a pending decision, the note shows a read-only notice with a link to the dashboard and its managed keys are not sent. Requirements: R-OB-6. Depends on: BRV-043, BRV-031.
 
-- **Criterios:** el aviso desaparece en el siguiente pull tras resolver en el dashboard; el cuerpo de la nota sigue editable y sincronizándose.
-- **Tests:** unitarios de bloqueo de envío; E2E de sistema de conflicto creado, aviso visible, resolución y aviso retirado.
+- **Criteria:** the notice disappears on the next pull after resolving in the dashboard; the note body stays editable and keeps syncing.
+- **Tests:** unit tests of push blocking; system E2E of conflict created, notice visible, resolution and notice removed.
 
 ### BRV-046 · Plugin release to community plugins
 
-Publicación del plugin en el directorio de Obsidian. Depende de: BRV-045.
+Publishing the plugin to the Obsidian directory. Depends on: BRV-045.
 
-- **Criterios:** cumple las directrices de revisión de plugins de Obsidian; `manifest.json` y `versions.json` correctos; release automatizado desde etiqueta; README con instalación y configuración.
-- **Tests:** build de release en CI; instalación manual desde el zip en un vault limpio.
+- **Criteria:** meets Obsidian's plugin review guidelines; correct `manifest.json` and `versions.json`; automated release from a tag; README with installation and configuration.
+- **Tests:** release build in CI; manual installation from the zip into a clean vault.
 
-## Fase 5 — Google
+## Phase 5 — Google
 
-El adaptador de Google en el servidor, con la importación inicial en modo emparejamiento, que es la parte más delicada por los duplicados.
+The Google adapter on the server, with the initial import in matching mode, which is the most delicate part because of duplicates.
 
-**Puerta G5:** los tres sistemas de prueba (iCloud, Google y Obsidian) sincronizados 7 días seguidos sin cambios fantasma, duplicados ni pérdidas; todos los duplicados de la importación inicial llegaron como propuestas. Al cerrarla, @raul decide cuándo conectar sus contactos reales.
+**Gate G5:** the three test systems (iCloud, Google and Obsidian) synced for 7 consecutive days without phantom changes, duplicates or losses; every duplicate from the initial import arrived as a proposal. When closing it, @raul decides when to connect his real contacts.
 
 ### BRV-050 · Google OAuth connection
 
-Conexión de la cuenta de Google desde los ajustes del dashboard, con el cliente OAuth del usuario, refresh token cifrado y detección de token inválido. Requisitos: R-SEC-3, R-SEC-10. Depende de: BRV-027, BRV-002.
+Connecting the Google account from the dashboard settings, with the user's OAuth client, encrypted refresh token and invalid-token detection. Requirements: R-SEC-3, R-SEC-10. Depends on: BRV-027, BRV-002.
 
-- **Criterios:** el refresh token se guarda cifrado con AES-256-GCM y nunca aparece en logs ni respuestas; un token revocado o caducado se muestra como error en el estado del sistema con el paso para reconectar; desconectar borra el token.
-- **Tests:** unitarios de cifrado y descifrado con clave incorrecta; integración del flujo OAuth contra un servidor simulado.
+- **Criteria:** the refresh token is stored encrypted with AES-256-GCM and never appears in logs or responses; a revoked or expired token is shown as an error in the system status with the step to reconnect; disconnecting deletes the token.
+- **Tests:** unit tests of encryption and of decryption with a wrong key; integration of the OAuth flow against a mock server.
 
 ### BRV-051 · Google adapter: pull
 
-Lectura incremental con `syncToken` cada 5 minutos (configurable) y bajo demanda, y resincronización completa si el token caduca, pasando todo por `merge`. Depende de: BRV-050, BRV-030.
+Incremental read with `syncToken` every 5 minutes (configurable) and on demand, and a full resync if the token expires, with everything going through `merge`. Depends on: BRV-050, BRV-030.
 
-- **Criterios:** un `syncToken` caducado no produce duplicados; los errores de cuota se reintentan con backoff.
-- **Tests:** integración con MSW y fixtures anonimizadas del spike, incluidos token caducado y error de cuota.
+- **Criteria:** an expired `syncToken` does not produce duplicates; quota errors are retried with backoff.
+- **Tests:** integration with MSW and the spike's anonymized fixtures, including expired token and quota error.
 
 ### BRV-052 · Google adapter: push
 
-Escritura de cambios del hub con etag; ante etag obsoleto, releer y refusionar. Requisitos: R-SYNC-5. Depende de: BRV-051.
+Writing hub changes with etag; on a stale etag, re-read and re-merge. Requirements: R-SYNC-5. Depends on: BRV-051.
 
-- **Criterios:** ningún cambio se escribe en Google con dry-run activo; tras escribir, base y etag se actualizan en la misma transacción.
-- **Tests:** integración de escritura correcta, etag obsoleto y fallo de red a mitad de lote; E2E de sistema hub ↔ servidor falso de Google sin bucles en 100 ciclos.
+- **Criteria:** no change is written to Google while dry-run is on; after writing, base and etag are updated in the same transaction.
+- **Tests:** integration of a successful write, stale etag and network failure mid-batch; system E2E hub ↔ fake Google server without loops in 100 cycles.
 
 ### BRV-053 · Initial import with matching
 
-Primera sincronización de Google en modo emparejamiento: coincidencias por teléfono o email normalizado generan propuestas de fusión; el resto, contactos nuevos con su `external_link`. Depende de: BRV-052, BRV-031.
+First Google sync in matching mode: matches by normalized phone number or email generate merge proposals; the rest become new contacts with their `external_link`. Depends on: BRV-052, BRV-031.
 
-- **Criterios:** ninguna fusión automática; el dashboard muestra un resumen de la importación (nuevos, propuestas, ignorados) antes de desactivar el dry-run.
-- **Tests:** integración con el corpus sintético de variaciones entre iCloud y Google preparado en las cuentas de prueba.
+- **Criteria:** no automatic merges; the dashboard shows an import summary (new, proposals, ignored) before dry-run is turned off.
+- **Tests:** integration with the synthetic corpus of iCloud–Google variations prepared in the test accounts.
 
 ### BRV-054 · Google setup guide
 
-Guía paso a paso para crear el proyecto y el cliente OAuth en Google Cloud, con la advertencia de publicar la app en "In production" para que el refresh token no caduque a los 7 días. Depende de: BRV-050.
+Step-by-step guide to create the project and OAuth client in Google Cloud, with the warning to publish the app as "In production" so the refresh token does not expire after 7 days. Depends on: BRV-050.
 
-- **Criterios:** alguien sin contexto completa la conexión siguiendo solo la guía; el dashboard enlaza a ella desde el botón de conectar Google.
-- **Tests:** prueba manual de @raul con una cuenta de Google nueva.
+- **Criteria:** someone without context completes the connection by following only the guide; the dashboard links to it from the connect Google button.
+- **Tests:** manual test by @raul with a new Google account.
 
-## Fase 6 — Release 1.0 y proceso de versiones
+## Phase 6 — Release 1.0 and versioning process
 
-La fase final prepara Brevolt para que lo use otra persona: documentación, revisión de seguridad, paso de @raul a sus contactos reales y la versión 1.0.0.
+The final phase gets Brevolt ready for someone else to use: documentation, security review, @raul's move to his real contacts and version 1.0.0.
 
-**Puerta G6:** documentación completa revisada; modelo de amenazas sin riesgos altos abiertos; contactos reales de @raul sincronizados 7 días sin incidencias; v1.0.0 publicada en las tres piezas.
+**Gate G6:** complete documentation reviewed; threat model with no open high risks; @raul's real contacts synced for 7 days without incidents; v1.0.0 published for all three pieces.
 
 ### BRV-060 · User documentation
 
-Guía de instalación con Docker Compose, configuración, acceso por Tailscale, conexión de cada sistema, backups y restauración, y resolución de problemas. Depende de: BRV-054, BRV-046, BRV-037.
+Installation guide with Docker Compose, configuration, access via Tailscale, connecting each system, backups and restore, and troubleshooting. Depends on: BRV-054, BRV-046, BRV-037.
 
-- **Criterios:** una instalación desde cero siguiendo solo la documentación funciona en menos de 30 minutos (prueba de @raul en una máquina limpia).
+- **Criteria:** an installation from scratch following only the documentation works in under 30 minutes (tested by @raul on a clean machine).
 
 ### BRV-061 · Threat model and security review
 
-Modelo de amenazas en `docs/security/` (activos, actores, superficies: API, dashboard, bridge, plugin, OAuth, backups) y revisión de todos los `R-SEC-*` contra el código. Depende de: BRV-053.
+Threat model in `docs/security/` (assets, actors, surfaces: API, dashboard, bridge, plugin, OAuth, backups) and review of every `R-SEC-*` against the code. Depends on: BRV-053.
 
-- **Criterios:** cada amenaza tiene mitigación implementada o riesgo aceptado por @raul; ningún hallazgo alto abierto; historial de git completo escaneado con gitleaks sin hallazgos.
+- **Criteria:** every threat has an implemented mitigation or a risk accepted by @raul; no open high finding; full git history scanned with gitleaks with no findings.
 
 ### BRV-062 · Production cutover runbook
 
-Runbook para que @raul pase de las cuentas de prueba a sus contactos reales: backup previo de iCloud y Google (exportación vCard), conexión con dry-run, revisión del diff y de las propuestas, y activación. Depende de: BRV-061.
+Runbook for @raul to move from the test accounts to his real contacts: prior backup of iCloud and Google (vCard export), connection with dry-run, review of the diff and the proposals, and activation. Depends on: BRV-061.
 
-- **Criterios:** el runbook incluye cómo volver atrás en cada paso; el ensayo en staging con una copia anonimizada sale limpio.
+- **Criteria:** the runbook includes how to roll back at each step; the staging rehearsal with an anonymized copy comes out clean.
 
 ### BRV-063 · Release v1.0.0
 
-Publicación coordinada de la imagen del servidor, el bridge y el plugin en 1.0.0, con notas de versión. Depende de: BRV-060, BRV-062.
+Coordinated release of the server image, the bridge and the plugin at 1.0.0, with release notes. Depends on: BRV-060, BRV-062.
 
-- **Criterios:** imagen firmada con SBOM, bridge notarizado, plugin aprobado en el directorio; notas de versión generadas con Changesets.
+- **Criteria:** signed image with SBOM, notarized bridge, plugin approved in the directory; release notes generated with Changesets.
 
-**Proceso de versiones a partir de aquí:**
+**Versioning process from here on:**
 
-- **SemVer independiente por pieza** (servidor, bridge, plugin), con la versión de la API (`/v1`) como contrato compartido: un cambio incompatible en la API sube a `/v2` y convive con `/v1` al menos una versión menor.
-- **Changesets** genera versiones y changelogs desde los PRs; un release es una etiqueta firmada que dispara los workflows de publicación.
-- **Migraciones de base de datos** solo hacia delante, con backup automático previo (BRV-020); toda migración destructiva requiere ADR.
-- **Hotfix:** rama `fix/` desde `main`, mismo CI completo, release de parche; si el fallo afecta a datos, se publica primero un aviso en el README y en las notas de versión.
-- **Avisos de seguridad** por GitHub Security Advisories, siguiendo `SECURITY.md`.
+- **Independent SemVer per piece** (server, bridge, plugin), with the API version (`/v1`) as the shared contract: a breaking API change moves to `/v2` and coexists with `/v1` for at least one minor version.
+- **Changesets** generates versions and changelogs from PRs; a release is a signed tag that triggers the publishing workflows.
+- **Database migrations** forward-only, with a prior automatic backup (BRV-020); every destructive migration requires an ADR.
+- **Hotfix:** `fix/` branch from `main`, same full CI, patch release; if the bug affects data, a notice is published first in the README and in the release notes.
+- **Security advisories** via GitHub Security Advisories, following `SECURITY.md`.

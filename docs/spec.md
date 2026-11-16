@@ -1,178 +1,178 @@
-# Brevolt — Especificación de requisitos
+# Brevolt — Requirements specification
 
-## Resumen y objetivos
+## Summary and goals
 
-Brevolt es un hub self-hosted que mantiene una única fuente de verdad de contactos, editable desde el iPhone, desde Google Contacts y desde notas Markdown en Obsidian, con datos de enriquecimiento que no caben en un vCard.
+Brevolt is a self-hosted hub that keeps a single source of truth for contacts, editable from the iPhone, from Google Contacts and from Markdown notes in Obsidian, with enrichment data that does not fit in a vCard.
 
-**Problema.** Los contactos viven repartidos (iCloud, Google) y solo admiten los campos del vCard. No hay un sitio donde añadir contexto propio (dónde conociste a alguien, notas, relaciones, enlaces a otras notas) sin perder la sincronización con el teléfono.
+**Problem.** Contacts are scattered (iCloud, Google) and only support vCard fields. There is no place to add your own context (where you met someone, notes, relationships, links to other notes) without losing sync with the phone.
 
-**Objetivos.**
+**Goals.**
 
-1. Una base de datos en el servidor es la fuente de verdad de todos los contactos.
-2. Editar teléfonos, emails y demás campos desde cualquier lado (iPhone, Mac, Google, Obsidian) y que el cambio llegue al resto.
-3. Enriquecer cada contacto con nota libre en Markdown, etiquetas y campos propios que nunca se pierden por un sync.
-4. Sin pérdida silenciosa de datos: conflictos visibles, borrados confirmados a mano, historial completo de cambios.
-5. Desplegable con un `docker compose up` en infraestructura propia.
+1. A database on the server is the source of truth for all contacts.
+2. Edit phones, emails and other fields from anywhere (iPhone, Mac, Google, Obsidian) and have the change reach everywhere else.
+3. Enrich each contact with a free-form Markdown note, tags and custom fields that are never lost through a sync.
+4. No silent data loss: visible conflicts, deletions confirmed by hand, full change history.
+5. Deployable with a single `docker compose up` on your own infrastructure.
 
-**Usuario objetivo del MVP.** Un único usuario técnico, con iPhone y Mac en iCloud, cuenta de Google y vault de Obsidian. Multiusuario y otros ecosistemas quedan para después.
+**MVP target user.** A single technical user, with an iPhone and a Mac on iCloud, a Google account and an Obsidian vault. Multi-user and other ecosystems come later.
 
-## Alcance
+## Scope
 
-El MVP cubre cuatro piezas: servidor con base de datos, adaptador de Google, puente de macOS hacia Contactos (iCloud) y plugin de Obsidian. Todo lo demás queda fuera hasta que el ciclo básico funcione sin pérdida de datos.
+The MVP covers four pieces: a server with a database, the Google adapter, the macOS bridge to the Contacts app (iCloud) and the Obsidian plugin. Everything else is out until the basic loop works without data loss.
 
-| Bloque | MVP | Después |
+| Block | MVP | Later |
 | --- | --- | --- |
-| Servidor | API REST, SQLite, motor de fusión, `change_log`, dashboard mínimo | Postgres, multiusuario, servidor CardDAV propio |
-| Google | Sync bidireccional por People API | Etiquetas de Google como grupos, varias cuentas |
-| Apple | Puente de macOS en barra de menú | Puente iOS (BGAppRefreshTask o App Intent vía Atajos) |
-| Obsidian | Plugin que habla con la API; una nota por contacto | Modo fichero (vault montado en el servidor), plantillas |
-| Datos | Nombre, teléfonos, emails, direcciones, empresa, cargo, cumpleaños, URLs, nota Markdown, etiquetas, campos propios | Fotos, relaciones entre contactos, línea de tiempo de interacciones |
-| Seguridad | Token de API por cliente, acceso por Tailscale | OIDC, cifrado en reposo de campos |
+| Server | REST API, SQLite, merge engine, `change_log`, minimal dashboard | Postgres, multi-user, own CardDAV server |
+| Google | Two-way sync via People API | Google labels as groups, multiple accounts |
+| Apple | macOS bridge in the menu bar | iOS bridge (BGAppRefreshTask or App Intent via Shortcuts) |
+| Obsidian | Plugin that talks to the API; one note per contact | File mode (vault mounted on the server), templates |
+| Data | Name, phones, emails, addresses, company, job title, birthday, URLs, Markdown note, tags, custom fields | Photos, relationships between contacts, interaction timeline |
+| Security | Per-client API token, access via Tailscale | OIDC, field-level encryption at rest |
 
-**Fuera de alcance explícito:** CRM (pipelines, recordatorios de seguimiento), sincronización de calendarios, Android, importación desde LinkedIn u otras redes, y cualquier fusión automática de duplicados sin confirmación.
+**Explicitly out of scope:** CRM (pipelines, follow-up reminders), calendar sync, Android, import from LinkedIn or other networks, and any automatic merging of duplicates without confirmation.
 
-## Arquitectura
+## Architecture
 
-Un hub en el servidor guarda la verdad y fusiona; tres radios (puente de macOS, adaptador de Google, plugin de Obsidian) solo leen y escriben cada uno en su sistema. Todas las decisiones (conflictos, fusiones, borrados) se toman en el dashboard.
+A hub on the server holds the truth and merges; three spokes (macOS bridge, Google adapter, Obsidian plugin) only read from and write to their own system. All decisions (conflicts, merges, deletions) are made in the dashboard.
 
 ```mermaid
 flowchart LR
-    iPhone["iPhone<br/>App Contactos"] <--> iCloud["iCloud<br/>Sync nativo de Apple"]
-    iCloud <--> MacContacts["Contactos del Mac<br/>CNContactStore"]
-    MacContacts <--> Bridge["Puente macOS<br/>Solo traslada cambios"]
-    Bridge <-->|API bridge| Hub
-    subgraph Hub["Hub: servidor en el homelab"]
-        API["API REST y dashboard"]
-        Merge["Motor de fusión a tres bandas"]
-        DB[("SQLite: fuente de verdad + change_log")]
-        GAdapter["Adaptador Google"]
+    iPhone["iPhone<br/>Contacts app"] <--> iCloud["iCloud<br/>Native Apple sync"]
+    iCloud <--> MacContacts["Mac Contacts<br/>CNContactStore"]
+    MacContacts <--> Bridge["macOS bridge<br/>Only relays changes"]
+    Bridge <-->|bridge API| Hub
+    subgraph Hub["Hub: server in the homelab"]
+        API["REST API and dashboard"]
+        Merge["Three-way merge engine"]
+        DB[("SQLite: source of truth + change_log")]
+        GAdapter["Google adapter"]
     end
-    GAdapter <-->|People API| Google["Google Contacts<br/>Cuenta del usuario"]
-    Hub <-->|API REST| Plugin["Plugin de Obsidian<br/>Una nota Markdown por contacto"]
+    GAdapter <-->|People API| Google["Google Contacts<br/>User account"]
+    Hub <-->|REST API| Plugin["Obsidian plugin<br/>One Markdown note per contact"]
 ```
 
-iCloud mantiene el iPhone y el Mac sincronizados por su cuenta, así que el puente de macOS cubre los dos dispositivos. El adaptador de Google corre dentro del servidor; el iPhone puede tener o no la cuenta de Google activa en Contactos (ver riesgos).
+iCloud keeps the iPhone and the Mac in sync on its own, so the macOS bridge covers both devices. The Google adapter runs inside the server; the iPhone may or may not have the Google account enabled in the Contacts app (see risks).
 
-## Modelo de datos y normalización
+## Data model and normalization
 
-Cada contacto tiene un UUID propio e inmutable; los IDs de iCloud y Google son referencias externas. Los campos multivalor se guardan como filas para poder fusionar campo a campo.
+Each contact has its own immutable UUID; iCloud and Google IDs are external references. Multi-value fields are stored as rows so they can be merged field by field.
 
-| Tabla | Contenido | Notas |
+| Table | Contents | Notes |
 | --- | --- | --- |
-| `contact` | `id` (UUID v7), nombre (prefijo, nombre, segundo nombre, apellidos, sufijo), apodo, empresa, cargo, cumpleaños, `note_md`, `created_at`, `updated_at`, `deleted_at` | `note_md` = enriquecimiento libre; nunca se envía a Google ni a Contactos en el MVP |
-| `contact_field` | `id`, `contact_id`, `kind` (phone, email, address, url), `label`, `value`, `normalized`, `position` | Una fila por valor; clave de fusión = `kind` + `normalized` |
-| `tag` / `contact_tag` | Etiquetas propias | Solo en el hub y en Obsidian |
-| `custom_field` | `contact_id`, `key`, `value` | Claves libres del frontmatter de Obsidian |
-| `external_link` | `contact_id`, `system` (icloud, google, obsidian), `external_id`, `etag` | Única por (`system`, `external_id`) |
-| `sync_base` | `contact_id`, `system`, `snapshot` (JSON normalizado), `hash`, `synced_at` | Base de la fusión a tres bandas, una por sistema |
-| `change_log` | `id`, `ts`, `actor` (sistema o cliente), `contact_id`, `field`, `before`, `after`, `operation_id` | Solo inserción; auditoría y deshacer |
-| `conflict` | `id`, `contact_id`, `field`, `system`, `base`, `hub_value`, `external_value`, `status` | Pendiente hasta que el usuario elige |
-| `client` | `id`, `kind` (bridge-macos, obsidian), `name`, `token_hash`, `cursor`, `last_seen` | Un registro por cliente conectado |
+| `contact` | `id` (UUID v7), name (prefix, given name, middle name, family names, suffix), nickname, company, job title, birthday, `note_md`, `created_at`, `updated_at`, `deleted_at` | `note_md` = free-form enrichment; never sent to Google or the Contacts app in the MVP |
+| `contact_field` | `id`, `contact_id`, `kind` (phone, email, address, url), `label`, `value`, `normalized`, `position` | One row per value; merge key = `kind` + `normalized` |
+| `tag` / `contact_tag` | Own tags | Only in the hub and in Obsidian |
+| `custom_field` | `contact_id`, `key`, `value` | Free-form keys from the Obsidian frontmatter |
+| `external_link` | `contact_id`, `system` (icloud, google, obsidian), `external_id`, `etag` | Unique per (`system`, `external_id`) |
+| `sync_base` | `contact_id`, `system`, `snapshot` (normalized JSON), `hash`, `synced_at` | Base for the three-way merge, one per system |
+| `change_log` | `id`, `ts`, `actor` (system or client), `contact_id`, `field`, `before`, `after`, `operation_id` | Insert-only; audit and undo |
+| `conflict` | `id`, `contact_id`, `field`, `system`, `base`, `hub_value`, `external_value`, `status` | Pending until the user chooses |
+| `client` | `id`, `kind` (bridge-macos, obsidian), `name`, `token_hash`, `cursor`, `last_seen` | One record per connected client |
 
-**Reglas de normalización** (en un módulo compartido y con tests):
+**Normalization rules** (in a shared, tested module):
 
-- **Teléfonos:** E.164 con libphonenumber, región por defecto configurable (ES). Si no se puede parsear, se guarda tal cual y se marca.
-- **Emails:** recortar espacios y pasar a minúsculas.
-- **Etiquetas:** vocabulario propio (`mobile`, `home`, `work`, `main`, `other`, o texto libre). Cada adaptador traduce: Apple `_$!<Mobile>!$_`, Google `mobile`, vCard `TYPE=CELL`.
-- **Fechas:** ISO 8601; cumpleaños sin año permitido (`--03-12`).
-- **Nombres:** se conservan tal cual; el nombre visible se calcula, no se guarda.
+- **Phones:** E.164 with libphonenumber, configurable default region (ES). If it cannot be parsed, it is stored as-is and flagged.
+- **Emails:** trim whitespace and lowercase.
+- **Labels:** own vocabulary (`mobile`, `home`, `work`, `main`, `other`, or free text). Each adapter translates: Apple `_$!<Mobile>!$_`, Google `mobile`, vCard `TYPE=CELL`.
+- **Dates:** ISO 8601; birthday without a year allowed (`--03-12`).
+- **Names:** kept as-is; the display name is computed, not stored.
 
-## Motor de sincronización y fusión
+## Sync and merge engine
 
-Toda la lógica de fusión vive en el servidor; los clientes (puente, plugin) solo envían y aplican cambios. Cada sistema externo se fusiona contra el hub, nunca contra otro sistema.
+All merge logic lives on the server; clients (bridge, plugin) only send and apply changes. Each external system is merged against the hub, never against another system.
 
-**Fusión a tres bandas, campo a campo.** Para cada contacto y sistema se compara la base (`sync_base`), el valor actual del hub y el valor entrante:
+**Three-way merge, field by field.** For each contact and system, the base (`sync_base`), the current hub value and the incoming value are compared:
 
-| Base → hub | Base → externo | Resultado |
+| Base → hub | Base → external | Result |
 | --- | --- | --- |
-| Sin cambio | Cambió | Gana el externo; se aplica al hub |
-| Cambió | Sin cambio | Gana el hub; se envía al externo |
-| Cambió | Cambió al mismo valor | Nada que hacer; se actualiza la base |
-| Cambió | Cambió a otro valor | Conflicto: se registra, no se escribe en ningún lado |
+| No change | Changed | External wins; applied to the hub |
+| Changed | No change | Hub wins; sent to the external system |
+| Changed | Changed to the same value | Nothing to do; the base is updated |
+| Changed | Changed to a different value | Conflict: recorded, nothing is written anywhere |
 
-**Campos multivalor** (teléfonos, emails, direcciones, URLs) se fusionan como conjuntos con clave en `kind` + `normalized`: altas y bajas de cada lado se aplican; un cambio de etiqueta sobre el mismo valor se trata como cambio de campo.
+**Multi-value fields** (phones, emails, addresses, URLs) are merged as sets keyed on `kind` + `normalized`: additions and removals from each side are applied; a label change on the same value is treated as a field change.
 
-**Requisitos del motor:**
+**Engine requirements:**
 
-- **R-SYNC-1.** Función pura `merge(base, hub, external) → {hubPatch, externalPatch, conflicts}` sin E/S, testeada con fixtures y tests de propiedades (idempotencia: fusionar dos veces da lo mismo; un cambio de un solo lado siempre gana).
-- **R-SYNC-2.** Tras escribir en un sistema externo, la base y el etag se actualizan en la misma transacción, para que el siguiente pull no vea un cambio fantasma.
-- **R-SYNC-3.** Cada operación lleva un `operation_id` idempotente; reenviar el mismo lote no duplica cambios.
-- **R-SYNC-4.** Los conflictos, las propuestas de fusión y los borrados se resuelven únicamente en el dashboard, eligiendo hub, externo o un valor manual; los clientes (puente y plugin) solo sincronizan y nunca piden decisiones. Al resolver, el valor se propaga a todos los sistemas.
-- **R-SYNC-5.** Escrituras optimistas: con etag (`If-Match` o equivalente) en Google; si el etag no coincide, se vuelve a leer y fusionar.
+- **R-SYNC-1.** Pure function `merge(base, hub, external) → {hubPatch, externalPatch, conflicts}` with no I/O, tested with fixtures and property-based tests (idempotence: merging twice yields the same result; a one-sided change always wins).
+- **R-SYNC-2.** After writing to an external system, the base and the etag are updated in the same transaction, so the next pull does not see a phantom change.
+- **R-SYNC-3.** Each operation carries an idempotent `operation_id`; resending the same batch does not duplicate changes.
+- **R-SYNC-4.** Conflicts, merge proposals and deletions are resolved only in the dashboard, choosing hub, external or a manual value; clients (bridge and plugin) only sync and never ask for decisions. On resolution, the value is propagated to all systems.
+- **R-SYNC-5.** Optimistic writes: with etag (`If-Match` or equivalent) on Google; if the etag does not match, re-read and re-merge.
 
-**Borrados.** Un borrado detectado en un sistema externo no borra en el hub: marca el contacto como `deleted-upstream` y lo pone en la bandeja para confirmar. Un borrado confirmado en el hub hace soft delete (`deleted_at`) y se propaga; se purga a los 30 días.
+**Deletions.** A deletion detected in an external system does not delete in the hub: it marks the contact as `deleted-upstream` and puts it in the inbox for confirmation. A deletion confirmed in the hub performs a soft delete (`deleted_at`) and is propagated; it is purged after 30 days.
 
-**Altas y duplicados.** Un contacto nuevo en un sistema externo se empareja primero por teléfono o email normalizado. Si coincide con uno existente, se crea una propuesta de fusión; nunca se fusiona solo.
+**New contacts and duplicates.** A new contact in an external system is first matched by normalized phone or email. If it matches an existing one, a merge proposal is created; it is never merged automatically.
 
-**Importación inicial.** Primero iCloud (vía puente), luego Google en modo emparejamiento: todo lo que coincide genera propuestas, lo que no, contactos nuevos con su `external_link`.
+**Initial import.** First iCloud (via the bridge), then Google in matching mode: everything that matches generates proposals; everything that doesn't becomes new contacts with their `external_link`.
 
-**Bucles.** Cada escritura lleva el `actor` que la originó; un cliente nunca recibe de vuelta sus propios cambios, y el puente excluye sus escrituras del historial de Contactos (ver puente de macOS).
+**Loops.** Each write carries the `actor` that originated it; a client never receives its own changes back, and the bridge excludes its own writes from the Contacts history (see macOS bridge).
 
-## Servidor
+## Server
 
-Un único servicio en Node.js con TypeScript que expone la API, ejecuta los adaptadores y sirve el dashboard; se despliega con Docker Compose y guarda todo en SQLite.
+A single Node.js service in TypeScript that exposes the API, runs the adapters and serves the dashboard; it is deployed with Docker Compose and stores everything in SQLite.
 
-**Stack propuesto.** Node.js 22 LTS, TypeScript estricto, Fastify, SQLite con Drizzle (migraciones versionadas), Zod para validar contratos, libphonenumber-js, Vitest. Dashboard en React servido como estáticos por el mismo proceso. Monorepo con pnpm workspaces: `packages/core` (modelo, normalización, `merge`), `apps/server`, `apps/dashboard`, `apps/obsidian-plugin`, `apps/bridge-macos` (Swift).
+**Proposed stack.** Node.js 22 LTS, strict TypeScript, Fastify, SQLite with Drizzle (versioned migrations), Zod to validate contracts, libphonenumber-js, Vitest. Dashboard in React served as static files by the same process. Monorepo with pnpm workspaces: `packages/core` (model, normalization, `merge`), `apps/server`, `apps/dashboard`, `apps/obsidian-plugin`, `apps/bridge-macos` (Swift).
 
-**API (v1).** Autenticación por token Bearer por cliente; todos los cuerpos validados con Zod.
+**API (v1).** Bearer token authentication per client; all bodies validated with Zod.
 
-| Método y ruta | Uso |
+| Method and route | Use |
 | --- | --- |
-| `GET /v1/contacts?updatedSince=&q=` | Listar y buscar |
-| `GET /v1/contacts/:id` | Ficha completa, con enriquecimiento |
-| `POST /v1/contacts` / `PATCH /v1/contacts/:id` / `DELETE /v1/contacts/:id` | Edición desde dashboard u Obsidian (PATCH con `If-Match` de versión) |
-| `POST /v1/bridge/changes` | El puente sube deltas de Contactos |
-| `GET /v1/bridge/pending?cursor=` | El puente pide cambios a aplicar |
-| `POST /v1/bridge/ack` | El puente confirma resultado por cambio |
-| `GET /v1/conflicts` / `POST /v1/conflicts/:id/resolve` | Bandeja de conflictos |
-| `GET /v1/proposals` / `POST /v1/proposals/:id/accept` | Fusiones y borrados pendientes de confirmar |
-| `GET /v1/changes?contactId=` / `POST /v1/changes/:operationId/undo` | Historial y deshacer |
-| `GET /v1/export?format=vcf\|json` | Exportación completa |
-| `GET /healthz` | Salud y estado de cada adaptador |
+| `GET /v1/contacts?updatedSince=&q=` | List and search |
+| `GET /v1/contacts/:id` | Full record, including enrichment |
+| `POST /v1/contacts` / `PATCH /v1/contacts/:id` / `DELETE /v1/contacts/:id` | Editing from the dashboard or Obsidian (PATCH with version `If-Match`) |
+| `POST /v1/bridge/changes` | The bridge uploads Contacts deltas |
+| `GET /v1/bridge/pending?cursor=` | The bridge requests changes to apply |
+| `POST /v1/bridge/ack` | The bridge confirms the result per change |
+| `GET /v1/conflicts` / `POST /v1/conflicts/:id/resolve` | Conflict inbox |
+| `GET /v1/proposals` / `POST /v1/proposals/:id/accept` | Merges and deletions pending confirmation |
+| `GET /v1/changes?contactId=` / `POST /v1/changes/:operationId/undo` | History and undo |
+| `GET /v1/export?format=vcf\|json` | Full export |
+| `GET /healthz` | Health and status of each adapter |
 
-**Adaptador de Google (People API).**
+**Google adapter (People API).**
 
-- OAuth 2.0 con el cliente propio del usuario; refresh token cifrado en la base de datos con una clave de entorno.
-- Pull incremental con `syncToken`; si caduca, resincronización completa y fusión normal.
-- Push con el etag del recurso; en conflicto de etag, releer y refusionar.
-- Cada 5 minutos por defecto, configurable, y bajo demanda desde el dashboard.
-- El onboarding avisa de que la app OAuth debe estar en estado "In production": en "Testing" el refresh token caduca a los 7 días. El servidor detecta el token inválido y lo muestra en el dashboard.
+- OAuth 2.0 with the user's own client; refresh token encrypted in the database with a key from the environment.
+- Incremental pull with `syncToken`; if it expires, full resync and normal merge.
+- Push with the resource's etag; on an etag conflict, re-read and re-merge.
+- Every 5 minutes by default, configurable, and on demand from the dashboard.
+- Onboarding warns that the OAuth app must be in "In production" status: in "Testing" the refresh token expires after 7 days. The server detects the invalid token and shows it in the dashboard.
 
 **Dashboard (MVP).**
 
-1. Lista de contactos con búsqueda y ficha editable, enriquecimiento incluido.
-2. Bandeja: conflictos, propuestas de fusión y borrados por confirmar.
-3. Estado: último sync por sistema, errores, clientes conectados y su `last_seen`.
-4. Ajustes: conectar Google, crear y revocar tokens de cliente, región por defecto de teléfonos.
+1. Contact list with search and an editable record, enrichment included.
+2. Inbox: conflicts, merge proposals and deletions awaiting confirmation.
+3. Status: last sync per system, errors, connected clients and their `last_seen`.
+4. Settings: connect Google, create and revoke client tokens, default phone region.
 
-**Acceso al dashboard.** Un único usuario administrador: contraseña con hash argon2id fijada en el primer arranque, sesión en cookie `HttpOnly`, `Secure` y `SameSite=Strict`, y protección CSRF (ver BRV-025).
+**Dashboard access.** A single admin user: password hashed with argon2id, set on first startup; session in an `HttpOnly`, `Secure` and `SameSite=Strict` cookie; and CSRF protection (see BRV-025).
 
-**Despliegue.** `docker-compose.yml` con un servicio y un volumen para la base de datos. Variables: `DATABASE_PATH`, `ENCRYPTION_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PUBLIC_URL`. Sin exposición a internet por defecto: acceso por Tailscale.
+**Deployment.** `docker-compose.yml` with one service and one volume for the database. Variables: `DATABASE_PATH`, `ENCRYPTION_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PUBLIC_URL`. No internet exposure by default: access via Tailscale.
 
-## Puente de macOS
+## macOS bridge
 
-Una app de barra de menú en Swift que traslada cambios entre Contactos del Mac y el servidor, sin lógica de fusión. iCloud sincroniza el iPhone con el Mac, así que un único puente cubre los dos.
+A Swift menu bar app that relays changes between the Mac's Contacts app and the server, with no merge logic. iCloud syncs the iPhone with the Mac, so a single bridge covers both.
 
-**Requisitos funcionales:**
+**Functional requirements:**
 
-- **R-BR-1.** Al arrancar y en cada `CNContactStoreDidChange`, leer los cambios con `CNChangeHistoryFetchRequest` desde el último token y subirlos a `POST /v1/bridge/changes` normalizados (identificador de Contactos, contenedor, campos).
-- **R-BR-2.** Cada 60 segundos y bajo demanda, pedir `GET /v1/bridge/pending`, aplicar con `CNSaveRequest` y confirmar con `POST /v1/bridge/ack`, indicando éxito o error por cambio.
-- **R-BR-3.** Marcar todas sus escrituras con `transactionAuthor` y excluirlas al leer el historial con `excludedTransactionAuthors`.
-- **R-BR-4.** Estado local mínimo: token de historial, cursor del servidor y token de API. La correspondencia entre identificador de Contactos y UUID vive en el servidor (`external_link`), para poder reinstalar sin perder nada.
-- **R-BR-5.** Si el token de historial deja de ser válido, hacer una lectura completa y enviarla como instantánea; el servidor la fusiona como cualquier otro lote.
-- **R-BR-6.** Respetar el contenedor: solo lee y escribe en el contenedor de iCloud configurado. Google llega por su propio adaptador en el servidor, no a través del Mac.
+- **R-BR-1.** On startup and on every `CNContactStoreDidChange`, read changes with `CNChangeHistoryFetchRequest` since the last token and upload them, normalized, to `POST /v1/bridge/changes` (Contacts identifier, container, fields).
+- **R-BR-2.** Every 60 seconds and on demand, request `GET /v1/bridge/pending`, apply with `CNSaveRequest` and confirm with `POST /v1/bridge/ack`, reporting success or error per change.
+- **R-BR-3.** Tag all of its writes with `transactionAuthor` and exclude them when reading history with `excludedTransactionAuthors`.
+- **R-BR-4.** Minimal local state: history token, server cursor and API token. The mapping between Contacts identifier and UUID lives on the server (`external_link`), so it can be reinstalled without losing anything.
+- **R-BR-5.** If the history token is no longer valid, perform a full read and send it as a snapshot; the server merges it like any other batch.
+- **R-BR-6.** Respect the container: it only reads from and writes to the configured iCloud container. Google arrives through its own adapter on the server, not through the Mac.
 
-**Interfaz.** Icono en la barra de menú con estado (sincronizado, pendiente, error), último sync, número de cambios pendientes, botones "Sincronizar ahora" y "Pausar", y ajustes (URL del servidor, token en el Llavero, contenedor). Se lanza al iniciar sesión.
+**Interface.** Menu bar icon with status (synced, pending, error), last sync, number of pending changes, "Sync now" and "Pause" buttons, and settings (server URL, token in the Keychain, container). Launches at login.
 
-**Permisos y distribución.** Requiere acceso completo a Contactos. El campo Notas de Contactos no se lee ni se escribe en el MVP: necesita un entitlement que Apple concede a demanda. Distribución inicial firmada y notarizada fuera del App Store.
+**Permissions and distribution.** Requires full access to Contacts. The Contacts app's Notes field is neither read nor written in the MVP: it needs an entitlement that Apple grants on request. Initial distribution signed and notarized outside the App Store.
 
-**Contrato del puente (resumen).** Un cambio entrante lleva `operation_id`, `local_id`, `container_id`, `kind` (upsert o delete) y los campos completos del contacto tras el cambio. Un cambio pendiente lleva `operation_id`, `contact_id`, `local_id` (si existe) y el contacto completo a escribir. El ack lleva `operation_id`, `status` y el `local_id` resultante en las altas.
+**Bridge contract (summary).** An incoming change carries `operation_id`, `local_id`, `container_id`, `kind` (upsert or delete) and the contact's full fields after the change. A pending change carries `operation_id`, `contact_id`, `local_id` (if it exists) and the full contact to write. The ack carries `operation_id`, `status` and the resulting `local_id` for new contacts.
 
-## Plugin de Obsidian y formato Markdown
+## Obsidian plugin and Markdown format
 
-El plugin proyecta cada contacto del hub en una nota y devuelve al servidor lo que se edite en ella; funciona en escritorio y móvil usando `requestUrl`. Solo sincroniza el vault con el hub; el puente con Contactos es la app de macOS.
+The plugin projects each hub contact into a note and sends back to the server whatever is edited in it; it works on desktop and mobile using `requestUrl`. It only syncs the vault with the hub; the bridge to the Contacts app is the macOS app.
 
-**Formato de nota.** Una nota por contacto en una carpeta configurable (por defecto `Contacts/`), con el nombre visible como nombre de fichero. El frontmatter usa las claves de VCF Contacts (vCard 4.0) para ser compatible con ese plugin y con Google Contacts Sync; las claves `cf-*` son propias del hub.
+**Note format.** One note per contact in a configurable folder (`Contacts/` by default), with the display name as the file name. The frontmatter uses VCF Contacts keys (vCard 4.0) to be compatible with that plugin and with Google Contacts Sync; the `cf-*` keys belong to the hub.
 
 ```markdown
 ---
@@ -185,120 +185,120 @@ ORG: Acme
 "TEL[CELL]": "+34600000000"
 "EMAIL[WORK]": ana@acme.com
 BDAY: 1985-03-12
-tags: [contacto, trabajo]
-conocida-en: "[[Codemotion 2025]]"
+tags: [contact, work]
+met-at: "[[Codemotion 2025]]"
 ---
-Notas libres sobre Ana, enlaces y contexto.
+Free-form notes about Ana, links and context.
 ```
 
-**Propiedad de los campos:**
+**Field ownership:**
 
-| Parte de la nota | Se sincroniza con | Origen de la verdad |
+| Part of the note | Synced with | Source of truth |
 | --- | --- | --- |
-| Claves vCard (`N.*`, `FN`, `TEL[...]`, `EMAIL[...]`, `ADR[...]`, `ORG`, `TITLE`, `BDAY`, `URL[...]`) | Hub, y de ahí iCloud y Google | Hub, con fusión |
-| `tags` y cualquier otra clave | Hub (`tag`, `custom_field`) | Hub; nunca sale hacia iCloud ni Google |
-| Cuerpo de la nota | Hub (`note_md`) | Hub; nunca sale hacia iCloud ni Google |
-| `cf-id`, `cf-version` | Solo lectura | Hub; el plugin no deja editarlas |
+| vCard keys (`N.*`, `FN`, `TEL[...]`, `EMAIL[...]`, `ADR[...]`, `ORG`, `TITLE`, `BDAY`, `URL[...]`) | Hub, and from there iCloud and Google | Hub, with merge |
+| `tags` and any other key | Hub (`tag`, `custom_field`) | Hub; never leaves for iCloud or Google |
+| Note body | Hub (`note_md`) | Hub; never leaves for iCloud or Google |
+| `cf-id`, `cf-version` | Read-only | Hub; the plugin does not allow editing them |
 
-**Requisitos funcionales:**
+**Functional requirements:**
 
-- **R-OB-1.** Pull periódico (configurable, 5 minutos por defecto) y al abrir el vault: `GET /v1/contacts?updatedSince=` y reescritura de las notas afectadas.
-- **R-OB-2.** Al guardar una nota de contacto, con 3 segundos de espera tras la última edición, `PATCH /v1/contacts/:id` con `If-Match: cf-version`. Si la versión no coincide, el servidor fusiona y el plugin reescribe la nota con el resultado.
-- **R-OB-3.** Escribir notas con la API del vault de Obsidian (`processFrontMatter` para el frontmatter), nunca sobrescribiendo el fichero completo, para no pisar ediciones en curso.
-- **R-OB-4.** Nota nueva en la carpeta de contactos sin `cf-id` = contacto nuevo: `POST /v1/contacts` y se escribe el `cf-id` devuelto.
-- **R-OB-5.** Borrar una nota no borra el contacto: crea una propuesta de borrado en el servidor.
-- **R-OB-6.** El plugin no resuelve conflictos. Si un contacto tiene un conflicto pendiente, la nota muestra un aviso de solo lectura con un enlace al conflicto en el dashboard, y sus claves gestionadas no se envían hasta que se resuelva.
-- **R-OB-7.** Renombrar una nota no cambia el nombre del contacto; renombrar el contacto renombra la nota con el gestor de ficheros de Obsidian, para que los enlaces se actualicen.
-- **R-OB-8.** Comandos: "Sincronizar ahora" y "Abrir en dashboard". Ajustes del plugin: URL del servidor Brevolt (para instalaciones self-hosted), API key generada en el dashboard, carpeta de contactos e intervalo de sync; botón "Probar conexión".
+- **R-OB-1.** Periodic pull (configurable, 5 minutes by default) and on opening the vault: `GET /v1/contacts?updatedSince=` and rewrite of the affected notes.
+- **R-OB-2.** On saving a contact note, with a 3-second debounce after the last edit, `PATCH /v1/contacts/:id` with `If-Match: cf-version`. If the version does not match, the server merges and the plugin rewrites the note with the result.
+- **R-OB-3.** Write notes with the Obsidian vault API (`processFrontMatter` for the frontmatter), never overwriting the whole file, so as not to clobber in-progress edits.
+- **R-OB-4.** A new note in the contacts folder without `cf-id` = new contact: `POST /v1/contacts` and the returned `cf-id` is written.
+- **R-OB-5.** Deleting a note does not delete the contact: it creates a deletion proposal on the server.
+- **R-OB-6.** The plugin does not resolve conflicts. If a contact has a pending conflict, the note shows a read-only notice with a link to the conflict in the dashboard, and its managed keys are not sent until it is resolved.
+- **R-OB-7.** Renaming a note does not change the contact's name; renaming the contact renames the note with Obsidian's file manager, so that links are updated.
+- **R-OB-8.** Commands: "Sync now" and "Open in dashboard". Plugin settings: Brevolt server URL (for self-hosted installs), API key generated in the dashboard, contacts folder and sync interval; "Test connection" button.
 
-## Requisitos no funcionales
+## Non-functional requirements
 
-La prioridad es no perder datos nunca; el rendimiento solo tiene que bastar para unos pocos miles de contactos.
+The priority is never to lose data; performance only needs to be enough for a few thousand contacts.
 
-| Área | Requisito |
+| Area | Requirement |
 | --- | --- |
-| Integridad | Ninguna escritura en un sistema externo sin pasar por `merge`; ningún borrado propagado sin confirmación; toda escritura deja una fila en `change_log` |
-| Seguridad | Tokens de cliente guardados como hash; refresh token de Google cifrado (AES-256-GCM, clave en `ENCRYPTION_KEY`); sin acceso desde internet por defecto (Tailscale); HTTPS obligatorio si se expone |
-| Privacidad | Sin telemetría; los datos solo salen del servidor hacia los sistemas que el usuario conecta |
-| Backups | Copia diaria de SQLite con `VACUUM INTO` a un volumen aparte, 30 días de retención; exportación vCard y JSON bajo demanda; copia previa automática antes de cada migración |
-| Observabilidad | Logs JSON estructurados con `operation_id`; `/healthz` con el estado de cada adaptador; errores de sync visibles en el dashboard |
-| Rendimiento | Hasta 5.000 contactos; sync incremental por debajo de 5 segundos; importación inicial por debajo de 2 minutos |
-| Seguridad ante fallos | Modo dry-run por sistema (calcula el diff sin escribir) activado por defecto en la primera conexión de cada sistema |
-| Tests | `merge` y normalización con cobertura alta y tests de propiedades; adaptadores con fixtures grabadas de People API y de Contactos; un test de extremo a extremo con los tres sistemas simulados |
-| Licencia | Open source (MIT o AGPL-3.0, por decidir en BRV-004) |
+| Integrity | No write to an external system without going through `merge`; no deletion propagated without confirmation; every write leaves a row in `change_log` |
+| Security | Client tokens stored as hashes; Google refresh token encrypted (AES-256-GCM, key in `ENCRYPTION_KEY`); no internet access by default (Tailscale); HTTPS mandatory if exposed |
+| Privacy | No telemetry; data only leaves the server towards the systems the user connects |
+| Backups | Daily SQLite copy with `VACUUM INTO` to a separate volume, 30-day retention; vCard and JSON export on demand; automatic backup before each migration |
+| Observability | Structured JSON logs with `operation_id`; `/healthz` with each adapter's status; sync errors visible in the dashboard |
+| Performance | Up to 5,000 contacts; incremental sync under 5 seconds; initial import under 2 minutes |
+| Fail-safety | Per-system dry-run mode (computes the diff without writing) enabled by default on each system's first connection |
+| Tests | `merge` and normalization with high coverage and property-based tests; adapters with recorded People API and Contacts fixtures; one end-to-end test with all three systems simulated |
+| License | Open source (MIT or AGPL-3.0, to be decided in BRV-004) |
 
-## Seguridad por diseño (open source)
+## Security by design (open source)
 
-El código es público, así que no puede contener ningún secreto y la seguridad tiene que venir del propio código y de la configuración por defecto, no de que nadie vea el repositorio.
+The code is public, so it cannot contain any secret, and security must come from the code itself and the default configuration, not from nobody seeing the repository.
 
-**Secretos fuera del repositorio:**
+**Secrets outside the repository:**
 
-- **R-SEC-1.** Cero secretos en el código, la configuración, los tests o el historial de git: ni API keys, ni tokens, ni client ID o secret de Google, ni certificados, ni URLs privadas. Todo entra por variables de entorno o Docker secrets (variantes `*_FILE`).
-- **R-SEC-2.** `.env.example` solo con marcadores (`GOOGLE_CLIENT_SECRET=change-me`); `.env` y cualquier fichero de credenciales en `.gitignore`.
-- **R-SEC-3.** El proyecto nunca distribuye credenciales compartidas: cada usuario crea su propio cliente OAuth de Google y genera sus propios tokens de cliente.
-- **R-SEC-4.** Sin valores por defecto para secretos: el servidor no arranca si falta `ENCRYPTION_KEY` o tiene menos de 32 bytes, y lo dice claramente en el log.
-- **R-SEC-5.** Escaneo de secretos bloqueante: gitleaks en pre-commit y en CI, y secret scanning con push protection activado en GitHub. Si un secreto llega a publicarse, se rota; borrarlo del historial no basta.
-- **R-SEC-6.** Tests y fixtures solo con datos sintéticos; nunca contactos reales ni respuestas reales de APIs sin anonimizar.
+- **R-SEC-1.** Zero secrets in code, configuration, tests or git history: no API keys, no tokens, no Google client ID or secret, no certificates, no private URLs. Everything comes in through environment variables or Docker secrets (`*_FILE` variants).
+- **R-SEC-2.** `.env.example` with placeholders only (`GOOGLE_CLIENT_SECRET=change-me`); `.env` and any credentials file in `.gitignore`.
+- **R-SEC-3.** The project never distributes shared credentials: each user creates their own Google OAuth client and generates their own client tokens.
+- **R-SEC-4.** No default values for secrets: the server does not start if `ENCRYPTION_KEY` is missing or shorter than 32 bytes, and says so clearly in the log.
+- **R-SEC-5.** Blocking secret scanning: gitleaks in pre-commit and in CI, and secret scanning with push protection enabled on GitHub. If a secret ever gets published, it is rotated; removing it from history is not enough.
+- **R-SEC-6.** Tests and fixtures with synthetic data only; never real contacts or real, non-anonymized API responses.
 
-**Seguridad en el código:**
+**Security in the code:**
 
-- **R-SEC-7.** Tokens de cliente con alcance mínimo: el del puente solo accede a `/v1/bridge/*`, el de Obsidian solo a contactos. Se guardan como hash, se revocan desde el dashboard y caducan si no se usan en 90 días.
-- **R-SEC-8.** Validación estricta con Zod de toda entrada, límites de tamaño de cuerpo, consultas parametrizadas, rate limiting en autenticación, CORS cerrado por defecto y cabeceras de seguridad.
-- **R-SEC-9.** Logs sin datos personales ni secretos: teléfonos, emails, nombres y tokens se redactan, también en nivel debug.
-- **R-SEC-10.** Secretos en reposo cifrados (refresh token de Google con AES-256-GCM); valorar cifrar la base de datos completa en una fase posterior.
-- **R-SEC-11.** Puente de macOS: token en el Llavero, nunca en ficheros de preferencias. Certificados de firma y credenciales de notarización solo como secretos de CI.
-- **R-SEC-12.** Plugin de Obsidian: los ajustes del plugin se guardan dentro del vault y pueden acabar sincronizados o en git. Usar el almacén de secretos del sistema cuando Obsidian lo ofrezca; si no, avisar en los ajustes y apoyarse en el alcance mínimo y la revocación del token.
+- **R-SEC-7.** Client tokens with minimal scope: the bridge's only accesses `/v1/bridge/*`, Obsidian's only contacts. They are stored as hashes, revoked from the dashboard and expire if unused for 90 days.
+- **R-SEC-8.** Strict Zod validation of all input, body size limits, parameterized queries, rate limiting on authentication, CORS closed by default and security headers.
+- **R-SEC-9.** Logs without personal data or secrets: phones, emails, names and tokens are redacted, at debug level too.
+- **R-SEC-10.** Secrets encrypted at rest (Google refresh token with AES-256-GCM); consider encrypting the whole database in a later phase.
+- **R-SEC-11.** macOS bridge: token in the Keychain, never in preference files. Signing certificates and notarization credentials only as CI secrets.
+- **R-SEC-12.** Obsidian plugin: plugin settings are stored inside the vault and may end up synced or in git. Use the system secret store when Obsidian offers one; otherwise, warn in the settings and rely on minimal scope and token revocation.
 
-**Cadena de suministro y repositorio:**
+**Supply chain and repository:**
 
-- **R-SEC-13.** Lockfile obligatorio, dependencias mínimas, Renovate o Dependabot, `pnpm audit` y CodeQL en CI.
-- **R-SEC-14.** Imagen Docker con base mínima, usuario no root y sistema de ficheros de solo lectura salvo el volumen de datos; imagen firmada con cosign y SBOM publicado en cada release.
-- **R-SEC-15.** Rama principal protegida, revisión obligatoria, commits firmados y `SECURITY.md` con cómo reportar vulnerabilidades en privado.
+- **R-SEC-13.** Mandatory lockfile, minimal dependencies, Renovate or Dependabot, `pnpm audit` and CodeQL in CI.
+- **R-SEC-14.** Docker image with a minimal base, non-root user and read-only file system except for the data volume; image signed with cosign and SBOM published on every release.
+- **R-SEC-15.** Protected main branch, mandatory review, signed commits and a `SECURITY.md` explaining how to report vulnerabilities privately.
 
-## Plan de trabajo
+## Work plan
 
-El plan detallado, con fases, issues, criterios de aceptación, tests y puertas de calidad, está en [`docs/backlog.md`](backlog.md). Resumen del orden:
+The detailed plan, with phases, issues, acceptance criteria, tests and quality gates, is in [`docs/backlog.md`](backlog.md). Summary of the order:
 
-1. **Fase 0 — Spikes de riesgo:** historial de Contactos en macOS, People API, red y frontmatter en el plugin, ADR de stack.
-2. **Fase 1 — Fundaciones y núcleo:** monorepo, CI y seguridad del repositorio, modelo, normalización y `merge`.
-3. **Fase 2 — Servidor y dashboard:** base de datos, auth, API de contactos, dashboard, Docker y backups.
-4. **Fase 3 — Puente macOS:** orquestación de sync, bandeja de decisiones, dry-run y app de barra de menú.
-5. **Fase 4 — Obsidian:** mapeo Markdown y plugin.
-6. **Fase 5 — Google:** OAuth, pull, push e importación con emparejamiento.
-7. **Fase 6 — Release 1.0:** documentación, revisión de seguridad, paso a producción y v1.0.0.
+1. **Phase 0 — Risk spikes:** Contacts history on macOS, People API, networking and frontmatter in the plugin, stack ADR.
+2. **Phase 1 — Foundations and core:** monorepo, CI and repository security, model, normalization and `merge`.
+3. **Phase 2 — Server and dashboard:** database, auth, contacts API, dashboard, Docker and backups.
+4. **Phase 3 — macOS bridge:** sync orchestration, decision inbox, dry-run and menu bar app.
+5. **Phase 4 — Obsidian:** Markdown mapping and plugin.
+6. **Phase 5 — Google:** OAuth, pull, push and import with matching.
+7. **Phase 6 — Release 1.0:** documentation, security review, move to production and v1.0.0.
 
-Google va después de Apple y Obsidian porque añade la importación con duplicados, la parte más delicada; conviene que el motor ya esté probado con menos sistemas.
+Google comes after Apple and Obsidian because it adds import with duplicates, the most delicate part; it is better for the engine to already be proven with fewer systems.
 
-## Riesgos y decisiones abiertas
+## Risks and open decisions
 
-El mayor riesgo es una fusión defectuosa que borre o duplique contactos reales; por eso el dry-run, los backups y la confirmación de borrados van desde la primera versión.
+The biggest risk is a faulty merge that deletes or duplicates real contacts; that is why dry-run, backups and deletion confirmation ship from the very first version.
 
-| Riesgo | Mitigación |
+| Risk | Mitigation |
 | --- | --- |
-| Fusión que corrompe datos reales | Dry-run por defecto, backups diarios, `change_log` con deshacer, pruebas solo con cuentas de prueba hasta la fase 5 |
-| Cambios fantasma por etiquetas o formatos | Vocabulario propio de etiquetas y normalización compartida, con tests por adaptador |
-| Token de Google caducado en silencio | App OAuth en "In production", detección y aviso en el dashboard |
-| Mac apagado: los cambios del iPhone tardan | Aceptado en el MVP; puente iOS como fase posterior |
-| Duplicados entre iCloud y Google | Emparejamiento por teléfono o email y propuestas manuales |
-| Ediciones simultáneas en Obsidian y en el iPhone | Versión por contacto (`cf-version`) y fusión en el servidor |
+| Merge that corrupts real data | Dry-run by default, daily backups, `change_log` with undo, testing only with test accounts until phase 5 |
+| Phantom changes due to labels or formats | Own label vocabulary and shared normalization, with per-adapter tests |
+| Google token silently expired | OAuth app in "In production", detection and warning in the dashboard |
+| Mac powered off: iPhone changes are delayed | Accepted in the MVP; iOS bridge as a later phase |
+| Duplicates between iCloud and Google | Matching by phone or email and manual proposals |
+| Simultaneous edits in Obsidian and on the iPhone | Per-contact version (`cf-version`) and merge on the server |
 
-**Decisiones abiertas:**
+**Open decisions:**
 
-- [x] Nombre del proyecto: Brevolt.
-- [ ] Licencia: MIT o AGPL-3.0 (se decide en BRV-004).
-- [ ] Construirlo como proyecto propio o proponer la parte de Obsidian a VCF Contacts.
-- [ ] Si el cuerpo de la nota debe llegar alguna vez al campo Notas de Contactos o de Google, y en qué formato.
-- [ ] Región por defecto de teléfonos y comportamiento con números sin prefijo internacional.
+- [x] Project name: Brevolt.
+- [ ] License: MIT or AGPL-3.0 (decided in BRV-004).
+- [ ] Build it as a standalone project or propose the Obsidian part to VCF Contacts.
+- [ ] Whether the note body should ever reach the Notes field in the Contacts app or Google, and in what format.
+- [ ] Default phone region and behavior with numbers without an international prefix.
 
-## Referencias y proyectos existentes
+## References and existing projects
 
-Ningún proyecto revisado cubre la edición bidireccional con iCloud y Google con Markdown como proyección editable; estos son los más cercanos y qué aprovechar de cada uno.
+None of the projects reviewed covers two-way editing with iCloud and Google with Markdown as an editable projection; these are the closest ones and what to take from each.
 
-| Proyecto | Qué hace | Qué aprovechar |
+| Project | What it does | What to take |
 | --- | --- | --- |
-| [VCF Contacts](https://community.obsidian.md/plugins/vcf-contacts) | Contactos como notas con frontmatter vCard 4.0; sync CardDAV donde los dispositivos solo leen | Formato de frontmatter; posible colaboración en la parte bidireccional |
-| [Google Contacts Sync](https://community.obsidian.md/plugins/google-contacts) | Importa Google a notas, solo hacia Obsidian, respetando el cuerpo | Modo de formato compatible con VCF Contacts |
-| [Plugins de contactos para Obsidian](https://obsidianstats.com/tags/contact) | iCloud Contacts y Sync Contacts on macOS: sync en una sola dirección | Casos de uso y quejas de usuarios |
-| [Monica](https://github.com/monicahq/monica/issues/2738) | CRM personal self-hosted, servidor CardDAV | Ejemplo de lo que evitar: borrados silenciosos desde CardDAV |
-| [Markway](https://www.obsidianstats.com/plugins/markway) | App de macOS que hace de puente entre servicios de Apple y Markdown | Patrón de app nativa con permisos y plugin ligero |
-| [VaultSync](https://apps.apple.com/app/id6761845197) | App iOS que escribe en el vault de Obsidian | Prueba de que una app externa puede escribir en el vault en iOS |
+| [VCF Contacts](https://community.obsidian.md/plugins/vcf-contacts) | Contacts as notes with vCard 4.0 frontmatter; CardDAV sync where devices only read | Frontmatter format; possible collaboration on the two-way part |
+| [Google Contacts Sync](https://community.obsidian.md/plugins/google-contacts) | Imports Google into notes, one-way into Obsidian only, preserving the body | Format mode compatible with VCF Contacts |
+| [Contact plugins for Obsidian](https://obsidianstats.com/tags/contact) | iCloud Contacts and Sync Contacts on macOS: one-way sync | Use cases and user complaints |
+| [Monica](https://github.com/monicahq/monica/issues/2738) | Self-hosted personal CRM, CardDAV server | Example of what to avoid: silent deletions from CardDAV |
+| [Markway](https://www.obsidianstats.com/plugins/markway) | macOS app that bridges Apple services and Markdown | Pattern of a native app with permissions plus a lightweight plugin |
+| [VaultSync](https://apps.apple.com/app/id6761845197) | iOS app that writes to the Obsidian vault | Proof that an external app can write to the vault on iOS |

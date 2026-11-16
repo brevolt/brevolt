@@ -19,8 +19,8 @@ Instructions for AI agents (and humans) working on Brevolt. Read this file befor
 
 ## Language
 
-- Issue and Multica comments: Spanish, short (2–3 sentences: mention + action + pointer).
-- Code, identifiers, comments, commits, branches and PRs: English.
+- The project is English-only: docs, issues, Multica comments, code, identifiers, comments, commits, branches and PRs.
+- Issue and Multica comments are short (2–3 sentences: mention + action + pointer).
 
 ## Workflow
 
