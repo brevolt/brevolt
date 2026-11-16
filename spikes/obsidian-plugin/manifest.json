@@ -1,0 +1,9 @@
+{
+  "id": "brevolt-spike",
+  "name": "Brevolt spike",
+  "version": "0.0.0",
+  "minAppVersion": "1.11.4",
+  "description": "BRV-003 spike: network and frontmatter checks. Not for production.",
+  "author": "Brevolt",
+  "isDesktopOnly": false
+}
