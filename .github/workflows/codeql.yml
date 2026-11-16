@@ -13,6 +13,9 @@ permissions:
 
 jobs:
   codeql:
+    # Disabled while the repo is private without GitHub Code Security.
+    # Enable by setting the repository variable ENABLE_CODEQL=true.
+    if: ${{ vars.ENABLE_CODEQL == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

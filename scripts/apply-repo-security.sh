@@ -3,11 +3,14 @@
 # Usage: scripts/apply-repo-security.sh [owner/repo]
 set -euo pipefail
 REPO="${1:-brevolt/brevolt}"
+# Code Security (CodeQL) is off until the repo is public or has a GitHub Code Security license.
+# Run with ENABLE_CODE_SECURITY=1 to turn it on.
+ADVANCED_SECURITY=disabled; [ "${ENABLE_CODE_SECURITY:-0}" = 1 ] && ADVANCED_SECURITY=enabled
 
 # GitHub Code Security (needed by CodeQL on private repos), secret scanning + push protection.
 gh api -X PATCH "repos/$REPO" --input - <<JSON
 {"security_and_analysis":{
-  "advanced_security":{"status":"enabled"},
+  "advanced_security":{"status":"$ADVANCED_SECURITY"},
   "secret_scanning":{"status":"enabled"},
   "secret_scanning_push_protection":{"status":"enabled"}}}
 JSON
@@ -16,7 +19,7 @@ JSON
 gh api -X PUT "repos/$REPO/branches/main/protection" --input - <<JSON
 {
   "required_status_checks": {"strict": true,
-    "contexts": ["lint","typecheck","test","secrets","audit","codeql"]},
+    "contexts": ["lint","typecheck","test","secrets","audit"]},
   "enforce_admins": true,
   "required_pull_request_reviews": {"required_approving_review_count": 1,
     "dismiss_stale_reviews": true},
