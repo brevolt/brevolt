@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNull, like, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, like, lt, or, sql } from 'drizzle-orm';
 import { birthdaySchema, contactFieldKindSchema, labelSchema } from '@brevolt/contracts';
 import { normalizeEmail, normalizeLabel, normalizePhone } from '@brevolt/core';
 import { z } from 'zod';
@@ -83,6 +83,12 @@ export type WriteResult<T> =
   | { ok: true; value: T }
   | { ok: false; reason: 'not_found' }
   | { ok: false; reason: 'version_mismatch'; current: number };
+
+/** Why an operation cannot be undone: the contact moved on since, so reverting would lose data. */
+export type UndoResult =
+  | { ok: true; value: ContactView }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'conflict'; fields: string[] };
 
 type Tx = Parameters<Parameters<HubDatabase['transaction']>[0]>[0];
 
@@ -327,6 +333,98 @@ export class ContactService {
         .run();
       const after = mustLoad(tx, id);
       logChanges(tx, ctx, id, before, after);
+      return { ok: true, value: after } as const;
+    });
+  }
+
+  /** Every live contact, oldest first. Used by the full export. */
+  listAll(): ContactView[] {
+    const ids = this.db
+      .select({ id: contact.id })
+      .from(contact)
+      .where(isNull(contact.deletedAt))
+      .orderBy(contact.createdAt, contact.id)
+      .all();
+    return ids.map((r) => mustLoad(this.db, r.id));
+  }
+
+  /**
+   * Reverts exactly one operation (all its `change_log` rows) and records the revert as a new
+   * operation. Refuses with `conflict` when any touched field no longer holds the value the
+   * operation wrote, which also makes a second undo of the same operation a no-op error.
+   */
+  undo(operationId: string, ctx: WriteContext): UndoResult {
+    return this.db.transaction((tx) => {
+      const rows = tx
+        .select()
+        .from(changeLog)
+        .where(eq(changeLog.operationId, operationId))
+        .orderBy(asc(changeLog.id))
+        .all();
+      const first = rows[0];
+      if (!first) return { ok: false, reason: 'not_found' } as const;
+      const contactId = first.contactId;
+      if (rows.some((r) => r.contactId !== contactId)) {
+        return { ok: false, reason: 'conflict', fields: ['contactId'] } as const;
+      }
+      const before = load(tx, contactId);
+      if (!before) return { ok: false, reason: 'not_found' } as const;
+
+      const earlier = tx
+        .select({ id: changeLog.id })
+        .from(changeLog)
+        .where(and(eq(changeLog.contactId, contactId), lt(changeLog.id, first.id)))
+        .limit(1)
+        .get();
+      const ts = ctx.now.toISOString();
+
+      if (!earlier) {
+        // First operation on the contact: it was the creation, so undoing it deletes the contact.
+        if (before.deletedAt || before.version !== 1) {
+          return { ok: false, reason: 'conflict', fields: ['version'] } as const;
+        }
+        tx.update(contact)
+          .set({ deletedAt: ts, updatedAt: ts, version: before.version + 1 })
+          .where(eq(contact.id, contactId))
+          .run();
+        const after = mustLoad(tx, contactId);
+        logChanges(tx, ctx, contactId, before, after);
+        return { ok: true, value: after } as const;
+      }
+
+      const current = (key: string): string => {
+        const v =
+          key === 'fields'
+            ? before.fields.map(({ kind, label, value }) => ({ kind, label, value }))
+            : before[key as keyof ContactView];
+        return JSON.stringify(v ?? null);
+      };
+      const stale = rows.filter((r) => current(r.field) !== (r.after ?? 'null'));
+      if (stale.length > 0) {
+        return { ok: false, reason: 'conflict', fields: stale.map((r) => r.field) } as const;
+      }
+
+      const scalars: Record<string, unknown> = {};
+      for (const r of rows) {
+        const prior: unknown = r.before === null ? null : JSON.parse(r.before);
+        if ((SCALARS as readonly string[]).includes(r.field)) {
+          scalars[r.field] = r.field === 'noteMd' ? (prior ?? '') : prior;
+        } else if (r.field === 'deletedAt') {
+          scalars.deletedAt = prior;
+        } else if (r.field === 'fields') {
+          writeFields(tx, contactId, (prior ?? []) as z.infer<typeof fieldInput>[]);
+        } else if (r.field === 'tags') {
+          writeTags(tx, contactId, (prior ?? []) as string[]);
+        } else if (r.field === 'custom') {
+          writeCustom(tx, contactId, (prior ?? {}) as Record<string, string>);
+        }
+      }
+      tx.update(contact)
+        .set({ ...scalars, updatedAt: ts, version: before.version + 1 })
+        .where(eq(contact.id, contactId))
+        .run();
+      const after = mustLoad(tx, contactId);
+      logChanges(tx, ctx, contactId, before, after);
       return { ok: true, value: after } as const;
     });
   }
