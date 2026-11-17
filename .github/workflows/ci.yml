@@ -91,7 +91,7 @@ jobs:
         run: docker build -f deploy/Dockerfile -t brevolt:ci .
       # Fails on critical vulnerabilities (R-SEC-14).
       - name: Trivy scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: brevolt:ci
           severity: CRITICAL
@@ -111,4 +111,15 @@ jobs:
           trap 'docker compose logs; docker compose down -v' EXIT
           BREVOLT_VERSION=ci docker compose up -d --no-build --wait --wait-timeout 90
           curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:3000/healthz
-          docker compose exec -T server sh -c 'touch /app/x' && exit 1 || echo "root fs is read-only"
+          docker compose exec -T server sh -c 'touch /home/node/x' && exit 1 || echo "root fs is read-only"
+
+          # Restore drill: write a marker, back up, destroy it, restore, verify.
+          q() { docker compose exec -T server node -e "const D=require('better-sqlite3');const d=new D('/data/brevolt.db');$1;d.close()"; }
+          q "d.exec('CREATE TABLE drill(v TEXT);INSERT INTO drill VALUES (\\'kept\\')')"
+          docker compose run --rm --no-deps backup node dist/backup-cli.js --once
+          q "d.exec('DROP TABLE drill')"
+          docker compose stop server backup
+          docker compose run --rm --no-deps --entrypoint sh backup -c \
+            'rm -f /data/brevolt.db-wal /data/brevolt.db-shm; cp "$(ls /backups/brevolt-*.db | sort | tail -n1)" /data/brevolt.db'
+          docker compose up -d --no-build --wait --wait-timeout 90
+          q "console.log(d.prepare('SELECT v FROM drill').get().v)" | grep -x kept
