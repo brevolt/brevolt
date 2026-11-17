@@ -63,6 +63,3 @@ export function mergeScalars(
     conflicts,
   };
 }
-
-/** `merge(base, hub, external) → {hubPatch, externalPatch, conflicts}` for scalar fields. */
-export const merge = mergeScalars;
