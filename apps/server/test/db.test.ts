@@ -88,7 +88,7 @@ describe('database migrations', () => {
     again.close();
   });
 
-  it.each([0, 1, 2])(
+  it.each([0, 1, 2, 3])(
     'upgrades a database created by the first %i migration(s), keeping data',
     (previous) => {
       const path = join(dir, 'hub.db');
