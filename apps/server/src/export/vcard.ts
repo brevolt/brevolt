@@ -11,7 +11,7 @@ const SIMPLE_TYPES: Record<string, string> = { home: 'HOME', work: 'WORK', main:
 
 /** RFC 2426 text escaping. */
 const esc = (v: string): string =>
-  v.replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\;');
+  v.replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
 
 /** Folds a content line at 75 octets with CRLF + space continuation, never splitting a character. */
 function fold(line: string): string {

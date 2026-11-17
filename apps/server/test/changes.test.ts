@@ -185,7 +185,7 @@ describe('export', () => {
     expect(body).toContain('item1.TEL:+34 911 000 000\r\nitem1.X-ABLabel:beach house\r\n');
     expect(body).toContain('CATEGORIES:math\r\n');
     const unfolded = body.replace(/\r\n /g, '');
-    expect(unfolded).toContain('NOTE:Met at\; a "conference"\\, line\\nbreak');
+    expect(unfolded).toContain('NOTE:Met at\\; a "conference"\\, line\\nbreak');
     for (const line of body.split('\r\n')) expect(Buffer.byteLength(line)).toBeLessThanOrEqual(75);
   });
 
