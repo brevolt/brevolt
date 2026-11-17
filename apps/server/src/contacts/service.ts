@@ -1,0 +1,333 @@
+import { and, eq, gt, inArray, isNull, like, or, sql } from 'drizzle-orm';
+import { birthdaySchema, contactFieldKindSchema, labelSchema } from '@brevolt/contracts';
+import { normalizeEmail, normalizeLabel, normalizePhone } from '@brevolt/core';
+import { z } from 'zod';
+import type { HubDatabase } from '../db/index.js';
+import { changeLog, contact, contactField, contactTag, customField, tag } from '../db/schema.js';
+import { uuidv7 } from './uuid.js';
+
+const nullableText = z.string().nullable();
+
+const scalarShape = {
+  prefix: nullableText,
+  givenName: nullableText,
+  middleName: nullableText,
+  familyNames: nullableText,
+  suffix: nullableText,
+  nickname: nullableText,
+  company: nullableText,
+  jobTitle: nullableText,
+  birthday: birthdaySchema.nullable(),
+  noteMd: z.string(),
+};
+const SCALARS = Object.keys(scalarShape) as (keyof typeof scalarShape)[];
+
+const fieldInput = z.strictObject({
+  kind: contactFieldKindSchema,
+  label: labelSchema,
+  value: z.string().trim().min(1),
+});
+const extras = {
+  fields: z.array(fieldInput).max(200),
+  tags: z.array(z.string().trim().min(1)).max(100),
+  custom: z.record(z.string().min(1), z.string()),
+};
+
+export const createContactSchema = z.strictObject({
+  ...Object.fromEntries(Object.entries(scalarShape).map(([k, v]) => [k, v.optional()])),
+  fields: extras.fields.optional(),
+  tags: extras.tags.optional(),
+  custom: extras.custom.optional(),
+} as { [K in keyof typeof scalarShape]: z.ZodOptional<(typeof scalarShape)[K]> } & {
+  fields: z.ZodOptional<typeof extras.fields>;
+  tags: z.ZodOptional<typeof extras.tags>;
+  custom: z.ZodOptional<typeof extras.custom>;
+});
+/** PATCH has the same shape: only the keys present are changed; arrays replace the whole set. */
+export const patchContactSchema = createContactSchema.refine(
+  (v) => Object.keys(v).length > 0,
+  'Empty patch',
+);
+export type CreateContactInput = z.infer<typeof createContactSchema>;
+export type PatchContactInput = z.infer<typeof patchContactSchema>;
+
+export interface ContactView {
+  id: string;
+  version: number;
+  prefix: string | null;
+  givenName: string | null;
+  middleName: string | null;
+  familyNames: string | null;
+  suffix: string | null;
+  nickname: string | null;
+  company: string | null;
+  jobTitle: string | null;
+  birthday: string | null;
+  noteMd: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  fields: { id: string; kind: string; label: string; value: string; normalized: string }[];
+  tags: string[];
+  custom: Record<string, string>;
+}
+
+export interface WriteContext {
+  /** Who originates the write, e.g. `client:<id>`. */
+  actor: string;
+  operationId: string;
+  now: Date;
+}
+
+export type WriteResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'version_mismatch'; current: number };
+
+type Tx = Parameters<Parameters<HubDatabase['transaction']>[0]>[0];
+
+function normalizeValue(kind: string, value: string): string {
+  if (kind === 'phone') return normalizePhone(value).normalized;
+  if (kind === 'email') return normalizeEmail(value);
+  return value.trim();
+}
+
+function load(db: HubDatabase | Tx, id: string): ContactView | null {
+  const row = db.select().from(contact).where(eq(contact.id, id)).get();
+  if (!row) return null;
+  const fields = db
+    .select()
+    .from(contactField)
+    .where(eq(contactField.contactId, id))
+    .orderBy(contactField.position)
+    .all();
+  const tags = db
+    .select({ name: tag.name })
+    .from(contactTag)
+    .innerJoin(tag, eq(tag.id, contactTag.tagId))
+    .where(eq(contactTag.contactId, id))
+    .orderBy(tag.name)
+    .all();
+  const custom = db.select().from(customField).where(eq(customField.contactId, id)).all();
+  return {
+    ...row,
+    fields: fields.map((f) => ({
+      id: f.id,
+      kind: f.kind,
+      label: f.label,
+      value: f.value,
+      normalized: f.normalized,
+    })),
+    tags: tags.map((t) => t.name),
+    custom: Object.fromEntries(
+      custom.sort((a, b) => a.key.localeCompare(b.key)).map((c) => [c.key, c.value]),
+    ),
+  };
+}
+
+function mustLoad(db: HubDatabase | Tx, id: string): ContactView {
+  const found = load(db, id);
+  if (!found) throw new Error(`Contact ${id} vanished inside a transaction`);
+  return found;
+}
+
+function writeFields(tx: Tx, id: string, fields: z.infer<typeof fieldInput>[]): void {
+  tx.delete(contactField).where(eq(contactField.contactId, id)).run();
+  fields.forEach((f, position) => {
+    const label = normalizeLabel(f.label);
+    tx.insert(contactField)
+      .values({
+        id: uuidv7(),
+        contactId: id,
+        kind: f.kind,
+        label,
+        value: f.value,
+        normalized: normalizeValue(f.kind, f.value),
+        position,
+      })
+      .run();
+  });
+}
+
+function writeTags(tx: Tx, id: string, names: string[]): void {
+  tx.delete(contactTag).where(eq(contactTag.contactId, id)).run();
+  for (const name of new Set(names)) {
+    let t = tx.select().from(tag).where(eq(tag.name, name)).get();
+    if (!t) {
+      t = { id: uuidv7(), name };
+      tx.insert(tag).values(t).run();
+    }
+    tx.insert(contactTag).values({ contactId: id, tagId: t.id }).run();
+  }
+}
+
+function writeCustom(tx: Tx, id: string, custom: Record<string, string>): void {
+  tx.delete(customField).where(eq(customField.contactId, id)).run();
+  for (const [key, value] of Object.entries(custom)) {
+    tx.insert(customField).values({ contactId: id, key, value }).run();
+  }
+}
+
+const json = (v: unknown): string | null =>
+  v === null || v === undefined ? null : JSON.stringify(v);
+
+/** One change_log row per changed logical field. Values are JSON text. */
+function logChanges(
+  tx: Tx,
+  ctx: WriteContext,
+  contactId: string,
+  before: ContactView | null,
+  after: ContactView,
+): number {
+  const ts = ctx.now.toISOString();
+  const keys = [...SCALARS, 'fields', 'tags', 'custom', 'deletedAt'] as const;
+  let n = 0;
+  for (const key of keys) {
+    const strip = (c: ContactView | null) =>
+      key === 'fields'
+        ? c?.fields.map(({ kind, label, value }) => ({ kind, label, value }))
+        : c?.[key];
+    const b = strip(before);
+    const a = strip(after);
+    const empty = (v: unknown) =>
+      v === undefined ||
+      v === null ||
+      v === '' ||
+      (Array.isArray(v) && v.length === 0) ||
+      (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0);
+    if (JSON.stringify(b ?? null) === JSON.stringify(a ?? null) || (empty(b) && empty(a))) continue;
+    tx.insert(changeLog)
+      .values({
+        ts,
+        actor: ctx.actor,
+        contactId,
+        field: key,
+        before: json(b),
+        after: json(a),
+        operationId: ctx.operationId,
+      })
+      .run();
+    n++;
+  }
+  return n;
+}
+
+export class ContactService {
+  constructor(private readonly db: HubDatabase) {}
+
+  get(id: string): ContactView | null {
+    return load(this.db, id);
+  }
+
+  list(opts: {
+    updatedSince?: string | undefined;
+    q?: string | undefined;
+    limit?: number | undefined;
+  }): ContactView[] {
+    const conds = [];
+    // Clients syncing by cursor must also see deletions; plain listings hide them.
+    if (opts.updatedSince) conds.push(gt(contact.updatedAt, opts.updatedSince));
+    else conds.push(isNull(contact.deletedAt));
+    if (opts.q) {
+      const needle = `%${opts.q.replace(/[\\%_]/g, '\\$&')}%`;
+      const ci = (col: unknown) => sql`${col} LIKE ${needle} ESCAPE '\\'`;
+      const byField = this.db
+        .select({ id: contactField.contactId })
+        .from(contactField)
+        .where(or(ci(contactField.value), like(contactField.normalized, needle)));
+      conds.push(
+        or(
+          ci(contact.givenName),
+          ci(contact.middleName),
+          ci(contact.familyNames),
+          ci(contact.nickname),
+          ci(contact.company),
+          inArray(contact.id, byField),
+        ) ?? sql`1`,
+      );
+    }
+    const ids = this.db
+      .select({ id: contact.id })
+      .from(contact)
+      .where(and(...conds))
+      .orderBy(contact.updatedAt, contact.id)
+      .limit(opts.limit ?? 200)
+      .all();
+    return ids.map((r) => mustLoad(this.db, r.id));
+  }
+
+  create(input: CreateContactInput, ctx: WriteContext): ContactView {
+    const id = uuidv7(ctx.now.getTime());
+    const ts = ctx.now.toISOString();
+    return this.db.transaction((tx) => {
+      const scalars = Object.fromEntries(
+        SCALARS.filter((k) => input[k] !== undefined).map((k) => [k, input[k]]),
+      );
+      tx.insert(contact)
+        .values({ ...scalars, id, version: 1, createdAt: ts, updatedAt: ts })
+        .run();
+      if (input.fields) writeFields(tx, id, input.fields);
+      if (input.tags) writeTags(tx, id, input.tags);
+      if (input.custom) writeCustom(tx, id, input.custom);
+      const after = mustLoad(tx, id);
+      logChanges(tx, ctx, id, null, after);
+      return after;
+    });
+  }
+
+  update(
+    id: string,
+    input: PatchContactInput,
+    expected: number,
+    ctx: WriteContext,
+  ): WriteResult<ContactView> {
+    return this.db.transaction((tx) => {
+      const before = load(tx, id);
+      if (!before || before.deletedAt) return { ok: false, reason: 'not_found' } as const;
+      if (before.version !== expected) {
+        return { ok: false, reason: 'version_mismatch', current: before.version } as const;
+      }
+      const scalars = Object.fromEntries(
+        SCALARS.filter((k) => input[k] !== undefined).map((k) => [k, input[k]]),
+      );
+      // Guarded update: a concurrent writer that bumped the version makes this match 0 rows.
+      const res = tx
+        .update(contact)
+        .set({ ...scalars, version: expected + 1, updatedAt: ctx.now.toISOString() })
+        .where(and(eq(contact.id, id), eq(contact.version, expected)))
+        .run();
+      if (res.changes === 0) {
+        return {
+          ok: false,
+          reason: 'version_mismatch',
+          current: load(tx, id)?.version ?? expected,
+        } as const;
+      }
+      if (input.fields) writeFields(tx, id, input.fields);
+      if (input.tags) writeTags(tx, id, input.tags);
+      if (input.custom) writeCustom(tx, id, input.custom);
+      const after = mustLoad(tx, id);
+      logChanges(tx, ctx, id, before, after);
+      return { ok: true, value: after } as const;
+    });
+  }
+
+  /** Soft delete: sets `deleted_at`. Deleting an already deleted contact is `not_found`. */
+  remove(id: string, expected: number | null, ctx: WriteContext): WriteResult<ContactView> {
+    return this.db.transaction((tx) => {
+      const before = load(tx, id);
+      if (!before || before.deletedAt) return { ok: false, reason: 'not_found' } as const;
+      if (expected !== null && before.version !== expected) {
+        return { ok: false, reason: 'version_mismatch', current: before.version } as const;
+      }
+      const ts = ctx.now.toISOString();
+      tx.update(contact)
+        .set({ deletedAt: ts, updatedAt: ts, version: before.version + 1 })
+        .where(eq(contact.id, id))
+        .run();
+      const after = mustLoad(tx, id);
+      logChanges(tx, ctx, id, before, after);
+      return { ok: true, value: after } as const;
+    });
+  }
+}

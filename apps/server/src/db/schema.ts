@@ -23,6 +23,8 @@ export const contact = sqliteTable(
     jobTitle: text('job_title'),
     birthday: text('birthday'),
     noteMd: text('note_md').notNull().default(''),
+    /** Per-contact optimistic-concurrency counter; bumped on every write (`If-Match`). */
+    version: integer('version').notNull().default(1),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
     deletedAt: text('deleted_at'),
