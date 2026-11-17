@@ -122,3 +122,9 @@ describe('loadConfig', () => {
     }
   });
 });
+
+describe('empty optional variables', () => {
+  it('treats an empty PUBLIC_URL as unset', () => {
+    expect(loadConfig({ ...valid, PUBLIC_URL: '' }).publicUrl).toBeUndefined();
+  });
+});

@@ -98,7 +98,10 @@ function resolveEnv(
     }
     if (values[name] === '') values[name] = undefined;
   }
-  if (values['DATABASE_PATH'] === '') values['DATABASE_PATH'] = undefined;
+  // Compose passes unset optional variables as empty strings.
+  for (const name of ['DATABASE_PATH', 'PUBLIC_URL']) {
+    if (values[name] === '') values[name] = undefined;
+  }
   return { values, issues };
 }
 
