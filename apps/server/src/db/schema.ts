@@ -169,3 +169,24 @@ export const client = sqliteTable(
   },
   (t) => [uniqueIndex('client_token_hash_unique').on(t.tokenHash)],
 );
+
+/** Single dashboard administrator: code only ever writes the row with `id = 1` (BRV-025). */
+export const adminUser = sqliteTable('admin_user', {
+  id: integer('id').primaryKey(),
+  /** argon2id PHC string. */
+  passwordHash: text('password_hash').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
+/** Dashboard sessions. Only the SHA-256 of the cookie value is stored. */
+export const adminSession = sqliteTable(
+  'admin_session',
+  {
+    idHash: text('id_hash').primaryKey(),
+    csrfToken: text('csrf_token').notNull(),
+    createdAt: text('created_at').notNull(),
+    lastSeenAt: text('last_seen_at').notNull(),
+    expiresAt: text('expires_at').notNull(),
+  },
+  (t) => [index('admin_session_expires_idx').on(t.expiresAt)],
+);
