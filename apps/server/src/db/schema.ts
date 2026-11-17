@@ -161,6 +161,9 @@ export const client = sqliteTable(
     tokenHash: text('token_hash').notNull(),
     cursor: text('cursor'),
     lastSeen: text('last_seen'),
+    createdAt: text('created_at').notNull().default('1970-01-01T00:00:00.000Z'),
+    /** Set when the token is revoked from the dashboard; revoked tokens never authenticate. */
+    revokedAt: text('revoked_at'),
   },
   (t) => [uniqueIndex('client_token_hash_unique').on(t.tokenHash)],
 );
