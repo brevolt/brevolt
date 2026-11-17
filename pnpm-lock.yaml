@@ -33,6 +33,12 @@ importers:
 
   apps/server:
     dependencies:
+      '@brevolt/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@brevolt/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       better-sqlite3:
         specifier: ^13.2.0
         version: 13.2.0
