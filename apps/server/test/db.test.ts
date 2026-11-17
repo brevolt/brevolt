@@ -16,6 +16,7 @@ const TABLES = [
   'contact_tag',
   'custom_field',
   'external_link',
+  'setting',
   'sync_base',
   'tag',
 ];

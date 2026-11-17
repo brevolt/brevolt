@@ -21,3 +21,5 @@ export {
   CSRF_FIELD,
   type DashboardAuthOptions,
 } from './auth/dashboard.js';
+export { settingsRoutes, type SettingsRoutesOptions } from './settings/routes.js';
+export { getPhoneRegion, setPhoneRegion, isValidRegion } from './settings/settings.js';

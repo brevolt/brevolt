@@ -29,6 +29,13 @@
       "when": 1794928015749,
       "tag": "0003_dashboard_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794929509541,
+      "tag": "0004_settings",
+      "breakpoints": true
     }
   ]
 }

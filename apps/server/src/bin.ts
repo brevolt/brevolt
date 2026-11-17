@@ -1,9 +1,10 @@
 import { loadConfig, ConfigError } from './config.js';
 import { openDatabase } from './db/index.js';
 import { buildApp } from './app.js';
+import { ensureAdmin } from './auth/admin.js';
 import { createLogger } from './logger.js';
 
-function main(): void {
+async function main(): Promise<void> {
   let config;
   try {
     config = loadConfig();
@@ -21,6 +22,9 @@ function main(): void {
       logger.info('pre-migration backup created');
     },
   });
+  if ((await ensureAdmin(database.db, config.adminPassword)) === 'missing') {
+    logger.warn('no dashboard admin exists; set ADMIN_PASSWORD to create it');
+  }
   const app = buildApp({ db: database.db });
   app.listen({ port: config.port, host: config.host }).then(
     () => {
@@ -50,4 +54,4 @@ function main(): void {
   });
 }
 
-main();
+void main();

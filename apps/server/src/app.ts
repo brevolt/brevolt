@@ -4,6 +4,8 @@ import type { HubDatabase } from './db/index.js';
 import { tokenAuthPlugin } from './auth/plugin.js';
 import { changeRoutes } from './changes/routes.js';
 import { contactRoutes } from './contacts/routes.js';
+import { dashboardAuthPlugin } from './auth/dashboard.js';
+import { settingsRoutes } from './settings/routes.js';
 
 export interface AppOptions {
   db: HubDatabase;
@@ -40,6 +42,8 @@ export function buildApp(
   });
 
   void app.register(tokenAuthPlugin, { db: opts.db, now });
+  void app.register(dashboardAuthPlugin, { db: opts.db, now });
+  void app.register(settingsRoutes, { db: opts.db, adapters, now });
   void app.register(contactRoutes, { db: opts.db, now });
   void app.register(changeRoutes, { db: opts.db, now });
   return app;
