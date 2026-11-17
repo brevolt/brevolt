@@ -2,3 +2,6 @@ packages:
   - 'packages/*'
   - 'apps/*'
 # spikes/ is phase 0 code with its own lockfiles; never part of the workspace.
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild
