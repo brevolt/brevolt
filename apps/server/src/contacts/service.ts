@@ -1,5 +1,6 @@
 import { and, asc, eq, gt, inArray, isNull, like, lt, or, sql } from 'drizzle-orm';
 import { birthdaySchema, contactFieldKindSchema, labelSchema } from '@brevolt/contracts';
+import { getPhoneRegion } from '../settings/settings.js';
 import { normalizeEmail, normalizeLabel, normalizePhone } from '@brevolt/core';
 import { z } from 'zod';
 import type { HubDatabase } from '../db/index.js';
@@ -92,8 +93,9 @@ export type UndoResult =
 
 type Tx = Parameters<Parameters<HubDatabase['transaction']>[0]>[0];
 
-function normalizeValue(kind: string, value: string): string {
-  if (kind === 'phone') return normalizePhone(value).normalized;
+function normalizeValue(db: HubDatabase | Tx, kind: string, value: string): string {
+  if (kind === 'phone')
+    return normalizePhone(value, { defaultRegion: getPhoneRegion(db) }).normalized;
   if (kind === 'email') return normalizeEmail(value);
   return value.trim();
 }
@@ -148,7 +150,7 @@ function writeFields(tx: Tx, id: string, fields: z.infer<typeof fieldInput>[]): 
         kind: f.kind,
         label,
         value: f.value,
-        normalized: normalizeValue(f.kind, f.value),
+        normalized: normalizeValue(tx, f.kind, f.value),
         position,
       })
       .run();

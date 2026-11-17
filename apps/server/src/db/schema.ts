@@ -190,3 +190,9 @@ export const adminSession = sqliteTable(
   },
   (t) => [index('admin_session_expires_idx').on(t.expiresAt)],
 );
+
+/** Hub-wide key/value settings edited from the dashboard (BRV-027), e.g. `phone_region`. */
+export const setting = sqliteTable('setting', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+});

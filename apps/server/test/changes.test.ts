@@ -211,7 +211,8 @@ describe('healthz', () => {
     expect((await full.inject({ method: 'GET', url: '/v1/export?format=json' })).statusCode).toBe(
       401,
     );
-    expect((await full.inject({ method: 'GET', url: '/nope' })).statusCode).toBe(404);
+    // Non-API paths are denied by default: without a dashboard session they redirect to login.
+    expect((await full.inject({ method: 'GET', url: '/nope' })).statusCode).toBe(302);
     await full.close();
   });
 
