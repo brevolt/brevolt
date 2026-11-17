@@ -18,12 +18,22 @@ const base: ScalarSnapshot = { ...empty, givenName: 'Ana', company: 'Acme', birt
 describe('merge scalar fields: table rows', () => {
   it('row 1: only external changed → external wins, applied to hub', () => {
     const r = merge(base, base, { ...base, company: 'Globex' });
-    expect(r).toEqual({ hubPatch: { company: 'Globex' }, externalPatch: {}, conflicts: [] });
+    expect(r).toEqual({
+      hubPatch: { company: 'Globex' },
+      externalPatch: {},
+      conflicts: [],
+      deletedUpstream: false,
+    });
   });
 
   it('row 2: only hub changed → hub wins, sent to external', () => {
     const r = merge(base, { ...base, jobTitle: 'CTO' }, base);
-    expect(r).toEqual({ hubPatch: {}, externalPatch: { jobTitle: 'CTO' }, conflicts: [] });
+    expect(r).toEqual({
+      hubPatch: {},
+      externalPatch: { jobTitle: 'CTO' },
+      conflicts: [],
+      deletedUpstream: false,
+    });
   });
 
   it('row 3: both changed to the same value → nothing to do', () => {
@@ -32,6 +42,7 @@ describe('merge scalar fields: table rows', () => {
       hubPatch: {},
       externalPatch: {},
       conflicts: [],
+      deletedUpstream: false,
     });
   });
 
