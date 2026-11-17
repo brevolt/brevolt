@@ -9,9 +9,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@brevolt/contracts": "workspace:*"
+    "@brevolt/contracts": "workspace:*",
+    "libphonenumber-js": "^1.13.16"
   },
   "devDependencies": {
+    "fast-check": "^4.10.2",
     "zod": "^4.6.7"
   }
 }
