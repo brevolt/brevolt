@@ -7,11 +7,13 @@ RUN pnpm install --frozen-lockfile \
  && pnpm --filter @brevolt/contracts build \
  && pnpm --filter @brevolt/core build \
  && pnpm --filter @brevolt/server build \
+ && pnpm --filter @brevolt/dashboard build \
  && pnpm --filter @brevolt/server deploy --legacy --prod /out \
  && for p in contracts core; do \
       sed -i 's#"main": "./src/index.ts"#"main": "./dist/index.js"#' "/out/node_modules/@brevolt/$p/package.json" \
       && rm -rf "/out/node_modules/@brevolt/$p/src" "/out/node_modules/@brevolt/$p/test"; \
     done \
+ && cp -r apps/dashboard/dist /out/dashboard \
  && rm -rf /out/src /out/test /out/tsconfig*.json /out/drizzle.config.ts
 
 FROM node:22-alpine
@@ -22,7 +24,7 @@ RUN apk upgrade --no-cache \
  && mkdir -p /data /backups && chown node:node /data /backups
 WORKDIR /app
 COPY --from=build --chown=root:root /out /app
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 DATABASE_PATH=/data/brevolt.db
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 DATABASE_PATH=/data/brevolt.db DASHBOARD_DIR=/app/dashboard
 USER node
 VOLUME ["/data"]
 EXPOSE 3000

@@ -24,7 +24,7 @@ const routes: FastifyPluginCallback<ChangeRoutesOptions> = (app: FastifyInstance
     const header = request.headers['x-operation-id'];
     const given = typeof header === 'string' && /^[\w.:-]{1,128}$/.test(header) ? header : null;
     const result = service.undo(p.data.operationId, {
-      actor: `client:${request.client?.id ?? 'unknown'}`,
+      actor: request.adminSession ? 'dashboard' : `client:${request.client?.id ?? 'unknown'}`,
       operationId: given ?? randomUUID(),
       now: now(),
     });

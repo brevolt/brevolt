@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, isNull, like, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, like, lt, or, sql } from 'drizzle-orm';
 import { birthdaySchema, contactFieldKindSchema, labelSchema } from '@brevolt/contracts';
 import { getPhoneRegion } from '../settings/settings.js';
 import { normalizeEmail, normalizeLabel, normalizePhone } from '@brevolt/core';
@@ -71,6 +71,21 @@ export interface ContactView {
   fields: { id: string; kind: string; label: string; value: string; normalized: string }[];
   tags: string[];
   custom: Record<string, string>;
+}
+
+export interface ListOptions {
+  updatedSince?: string | undefined;
+  q?: string | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
+  order?: 'updated' | 'name' | undefined;
+}
+
+export interface HistoryEntry {
+  operationId: string;
+  ts: string;
+  actor: string;
+  fields: string[];
 }
 
 export interface WriteContext {
@@ -227,11 +242,12 @@ export class ContactService {
     return load(this.db, id);
   }
 
-  list(opts: {
-    updatedSince?: string | undefined;
-    q?: string | undefined;
-    limit?: number | undefined;
-  }): ContactView[] {
+  list(opts: ListOptions): ContactView[] {
+    return this.listPage(opts).contacts;
+  }
+
+  /** One page of contacts plus the total number matching the filter (for the dashboard list). */
+  listPage(opts: ListOptions): { contacts: ContactView[]; total: number } {
     const conds = [];
     // Clients syncing by cursor must also see deletions; plain listings hide them.
     if (opts.updatedSince) conds.push(gt(contact.updatedAt, opts.updatedSince));
@@ -254,14 +270,51 @@ export class ContactService {
         ) ?? sql`1`,
       );
     }
+    const where = and(...conds);
+    const order =
+      opts.order === 'name'
+        ? [
+            sql`lower(coalesce(${contact.familyNames}, ${contact.givenName}, ${contact.company}, ''))`,
+            sql`lower(coalesce(${contact.givenName}, ''))`,
+            contact.id,
+          ]
+        : [contact.updatedAt, contact.id];
     const ids = this.db
       .select({ id: contact.id })
       .from(contact)
-      .where(and(...conds))
-      .orderBy(contact.updatedAt, contact.id)
+      .where(where)
+      .orderBy(...order)
       .limit(opts.limit ?? 200)
+      .offset(opts.offset ?? 0)
       .all();
-    return ids.map((r) => mustLoad(this.db, r.id));
+    const total =
+      this.db
+        .select({ n: sql<number>`count(*)` })
+        .from(contact)
+        .where(where)
+        .get()?.n ?? 0;
+    return { contacts: ids.map((r) => mustLoad(this.db, r.id)), total };
+  }
+
+  /** Newest operations first, each grouping the fields it changed. */
+  history(id: string, limit = 100): HistoryEntry[] {
+    const rows = this.db
+      .select()
+      .from(changeLog)
+      .where(eq(changeLog.contactId, id))
+      .orderBy(desc(changeLog.id))
+      .all();
+    const byOp = new Map<string, HistoryEntry>();
+    for (const r of rows) {
+      let entry = byOp.get(r.operationId);
+      if (!entry) {
+        if (byOp.size >= limit) continue;
+        entry = { operationId: r.operationId, ts: r.ts, actor: r.actor, fields: [] };
+        byOp.set(r.operationId, entry);
+      }
+      entry.fields.unshift(r.field);
+    }
+    return [...byOp.values()];
   }
 
   create(input: CreateContactInput, ctx: WriteContext): ContactView {

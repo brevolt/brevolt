@@ -5,11 +5,14 @@ import { tokenAuthPlugin } from './auth/plugin.js';
 import { changeRoutes } from './changes/routes.js';
 import { contactRoutes } from './contacts/routes.js';
 import { dashboardAuthPlugin } from './auth/dashboard.js';
+import { dashboardStaticRoutes } from './dashboard/static.js';
 import { settingsRoutes } from './settings/routes.js';
 
 export interface AppOptions {
   db: HubDatabase;
   now?: () => Date;
+  /** Built dashboard directory. When set, the dashboard SPA is served behind the session login. */
+  dashboardDir?: string;
 }
 
 /** Status of one external system. Adapters register themselves here in later phases. */
@@ -42,9 +45,10 @@ export function buildApp(
   });
 
   void app.register(tokenAuthPlugin, { db: opts.db, now });
-  void app.register(dashboardAuthPlugin, { db: opts.db, now });
+  void app.register(dashboardAuthPlugin, { db: opts.db, now, serveHome: !opts.dashboardDir });
   void app.register(settingsRoutes, { db: opts.db, adapters, now });
   void app.register(contactRoutes, { db: opts.db, now });
   void app.register(changeRoutes, { db: opts.db, now });
+  if (opts.dashboardDir) void app.register(dashboardStaticRoutes, { dir: opts.dashboardDir });
   return app;
 }

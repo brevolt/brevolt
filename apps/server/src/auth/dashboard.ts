@@ -33,6 +33,8 @@ export interface DashboardAuthOptions {
   /** Failed-login limit per address. Defaults to 5 failures per 5 minutes. */
   rateLimit?: FailureLimiterOptions;
   now?: () => Date;
+  /** Serve the built-in placeholder home at `/`. Turn off when the SPA is served instead. */
+  serveHome?: boolean;
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -226,7 +228,9 @@ const dashboardAuth: FastifyPluginCallback<DashboardAuthOptions> = (
       .redirect('/login', 303);
   });
 
-  app.get('/', (request, reply) => html(reply, homePage(request.adminSession?.csrfToken ?? '')));
+  if (opts.serveHome !== false) {
+    app.get('/', (request, reply) => html(reply, homePage(request.adminSession?.csrfToken ?? '')));
+  }
 
   done();
 };
