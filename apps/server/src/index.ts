@@ -7,3 +7,13 @@ export * from './auth/rate-limit.js';
 export { tokenAuthPlugin, isInScope, type TokenAuthOptions } from './auth/plugin.js';
 export { contactRoutes, type ContactRoutesOptions } from './contacts/routes.js';
 export { ContactService, type ContactView } from './contacts/service.js';
+export * from './auth/admin.js';
+export {
+  dashboardAuthPlugin,
+  parseCookies,
+  SESSION_COOKIE,
+  LOGIN_CSRF_COOKIE,
+  CSRF_HEADER,
+  CSRF_FIELD,
+  type DashboardAuthOptions,
+} from './auth/dashboard.js';
