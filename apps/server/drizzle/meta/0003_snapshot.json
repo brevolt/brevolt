@@ -46,9 +46,7 @@
       "indexes": {
         "admin_session_expires_idx": {
           "name": "admin_session_expires_idx",
-          "columns": [
-            "expires_at"
-          ],
+          "columns": ["expires_at"],
           "isUnique": false
         }
       },
@@ -151,17 +149,12 @@
       "indexes": {
         "change_log_contact_idx": {
           "name": "change_log_contact_idx",
-          "columns": [
-            "contact_id",
-            "ts"
-          ],
+          "columns": ["contact_id", "ts"],
           "isUnique": false
         },
         "change_log_operation_idx": {
           "name": "change_log_operation_idx",
-          "columns": [
-            "operation_id"
-          ],
+          "columns": ["operation_id"],
           "isUnique": false
         }
       },
@@ -234,9 +227,7 @@
       "indexes": {
         "client_token_hash_unique": {
           "name": "client_token_hash_unique",
-          "columns": [
-            "token_hash"
-          ],
+          "columns": ["token_hash"],
           "isUnique": true
         }
       },
@@ -309,9 +300,7 @@
       "indexes": {
         "conflict_status_idx": {
           "name": "conflict_status_idx",
-          "columns": [
-            "status"
-          ],
+          "columns": ["status"],
           "isUnique": false
         }
       },
@@ -320,12 +309,8 @@
           "name": "conflict_contact_id_contact_id_fk",
           "tableFrom": "conflict",
           "tableTo": "contact",
-          "columnsFrom": [
-            "contact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["contact_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -448,9 +433,7 @@
       "indexes": {
         "contact_updated_at_idx": {
           "name": "contact_updated_at_idx",
-          "columns": [
-            "updated_at"
-          ],
+          "columns": ["updated_at"],
           "isUnique": false
         }
       },
@@ -516,17 +499,12 @@
       "indexes": {
         "contact_field_contact_idx": {
           "name": "contact_field_contact_idx",
-          "columns": [
-            "contact_id"
-          ],
+          "columns": ["contact_id"],
           "isUnique": false
         },
         "contact_field_lookup_idx": {
           "name": "contact_field_lookup_idx",
-          "columns": [
-            "kind",
-            "normalized"
-          ],
+          "columns": ["kind", "normalized"],
           "isUnique": false
         }
       },
@@ -535,12 +513,8 @@
           "name": "contact_field_contact_id_contact_id_fk",
           "tableFrom": "contact_field",
           "tableTo": "contact",
-          "columnsFrom": [
-            "contact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["contact_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -573,12 +547,8 @@
           "name": "contact_tag_contact_id_contact_id_fk",
           "tableFrom": "contact_tag",
           "tableTo": "contact",
-          "columnsFrom": [
-            "contact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["contact_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -586,22 +556,15 @@
           "name": "contact_tag_tag_id_tag_id_fk",
           "tableFrom": "contact_tag",
           "tableTo": "tag",
-          "columnsFrom": [
-            "tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tag_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "contact_tag_contact_id_tag_id_pk": {
-          "columns": [
-            "contact_id",
-            "tag_id"
-          ],
+          "columns": ["contact_id", "tag_id"],
           "name": "contact_tag_contact_id_tag_id_pk"
         }
       },
@@ -639,22 +602,15 @@
           "name": "custom_field_contact_id_contact_id_fk",
           "tableFrom": "custom_field",
           "tableTo": "contact",
-          "columnsFrom": [
-            "contact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["contact_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "custom_field_contact_id_key_pk": {
-          "columns": [
-            "contact_id",
-            "key"
-          ],
+          "columns": ["contact_id", "key"],
           "name": "custom_field_contact_id_key_pk"
         }
       },
@@ -696,10 +652,7 @@
       "indexes": {
         "external_link_system_external_id_unique": {
           "name": "external_link_system_external_id_unique",
-          "columns": [
-            "system",
-            "external_id"
-          ],
+          "columns": ["system", "external_id"],
           "isUnique": true
         }
       },
@@ -708,23 +661,15 @@
           "name": "external_link_contact_id_contact_id_fk",
           "tableFrom": "external_link",
           "tableTo": "contact",
-          "columnsFrom": [
-            "contact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["contact_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "external_link_contact_id_system_external_id_pk": {
-          "columns": [
-            "contact_id",
-            "system",
-            "external_id"
-          ],
+          "columns": ["contact_id", "system", "external_id"],
           "name": "external_link_contact_id_system_external_id_pk"
         }
       },
@@ -776,22 +721,15 @@
           "name": "sync_base_contact_id_contact_id_fk",
           "tableFrom": "sync_base",
           "tableTo": "contact",
-          "columnsFrom": [
-            "contact_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["contact_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "sync_base_contact_id_system_pk": {
-          "columns": [
-            "contact_id",
-            "system"
-          ],
+          "columns": ["contact_id", "system"],
           "name": "sync_base_contact_id_system_pk"
         }
       },
@@ -819,9 +757,7 @@
       "indexes": {
         "tag_name_unique": {
           "name": "tag_name_unique",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": true
         }
       },
