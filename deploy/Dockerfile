@@ -4,8 +4,14 @@ RUN apk add --no-cache python3 make g++ && corepack enable
 WORKDIR /repo
 COPY . .
 RUN pnpm install --frozen-lockfile \
+ && pnpm --filter @brevolt/contracts build \
+ && pnpm --filter @brevolt/core build \
  && pnpm --filter @brevolt/server build \
  && pnpm --filter @brevolt/server deploy --legacy --prod /out \
+ && for p in contracts core; do \
+      sed -i 's#"main": "./src/index.ts"#"main": "./dist/index.js"#' "/out/node_modules/@brevolt/$p/package.json" \
+      && rm -rf "/out/node_modules/@brevolt/$p/src" "/out/node_modules/@brevolt/$p/test"; \
+    done \
  && rm -rf /out/src /out/test /out/tsconfig*.json /out/drizzle.config.ts
 
 FROM node:22-alpine

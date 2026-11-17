@@ -1,6 +1,6 @@
 import { loadConfig, ConfigError } from './config.js';
 import { openDatabase } from './db/index.js';
-import { createHttpServer } from './http.js';
+import { buildApp } from './app.js';
 import { createLogger } from './logger.js';
 
 function main(): void {
@@ -21,21 +21,26 @@ function main(): void {
       logger.info('pre-migration backup created');
     },
   });
-  const server = createHttpServer();
-  server.listen(config.port, config.host, () => {
-    logger.info('server listening', { host: config.host, port: config.port });
-  });
+  const app = buildApp({ db: database.db });
+  app.listen({ port: config.port, host: config.host }).then(
+    () => {
+      logger.info('server listening', { host: config.host, port: config.port });
+    },
+    () => {
+      logger.error('server failed to start');
+      process.exit(1);
+    },
+  );
 
   let closing = false;
   const shutdown = (signal: string): void => {
     if (closing) return;
     closing = true;
     logger.info('shutting down', { signal });
-    server.close(() => {
+    void app.close().finally(() => {
       database.close();
       process.exit(0);
     });
-    server.closeAllConnections();
   };
   process.on('SIGTERM', () => {
     shutdown('SIGTERM');
