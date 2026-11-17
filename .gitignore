@@ -12,3 +12,5 @@ coverage/
 # Spike runtime state
 spikes/google-people/.tokens.json
 spikes/google-people/.sync-state.json
+test-results/
+playwright-report/

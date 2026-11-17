@@ -25,7 +25,10 @@ async function main(): Promise<void> {
   if ((await ensureAdmin(database.db, config.adminPassword)) === 'missing') {
     logger.warn('no dashboard admin exists; set ADMIN_PASSWORD to create it');
   }
-  const app = buildApp({ db: database.db });
+  const app = buildApp({
+    db: database.db,
+    ...(config.dashboardDir ? { dashboardDir: config.dashboardDir } : {}),
+  });
   app.listen({ port: config.port, host: config.host }).then(
     () => {
       logger.info('server listening', { host: config.host, port: config.port });

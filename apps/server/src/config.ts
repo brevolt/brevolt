@@ -40,6 +40,8 @@ export interface Config {
   /** Initial dashboard admin password; only used on first startup, when no admin exists yet. */
   readonly adminPassword: string | undefined;
   readonly publicUrl: string | undefined;
+  /** Directory with the built dashboard; the dashboard is not served when unset. */
+  readonly dashboardDir: string | undefined;
   readonly host: string;
   readonly port: number;
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
@@ -70,6 +72,7 @@ const schema = z.object({
     )
     .optional(),
   PUBLIC_URL: z.url({ error: 'must be a valid URL' }).optional(),
+  DASHBOARD_DIR: z.string().min(1).optional(),
   HOST: z.string().min(1, 'must not be empty').default('127.0.0.1'),
   PORT: z
     .string()
@@ -115,7 +118,7 @@ function resolveEnv(
     if (values[name] === '') values[name] = undefined;
   }
   // Compose passes unset optional variables as empty strings.
-  for (const name of ['DATABASE_PATH', 'PUBLIC_URL']) {
+  for (const name of ['DATABASE_PATH', 'PUBLIC_URL', 'DASHBOARD_DIR']) {
     if (values[name] === '') values[name] = undefined;
   }
   return { values, issues };
@@ -149,6 +152,7 @@ export function loadConfig(
     googleClientSecret: d.GOOGLE_CLIENT_SECRET,
     adminPassword: d.ADMIN_PASSWORD,
     publicUrl: d.PUBLIC_URL,
+    dashboardDir: d.DASHBOARD_DIR,
     host: d.HOST,
     port: d.PORT,
     logLevel: d.LOG_LEVEL,

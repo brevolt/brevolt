@@ -29,6 +29,8 @@ const listQuery = z.object({
   updatedSince: z.iso.datetime({ offset: true }).optional(),
   q: z.string().trim().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  order: z.enum(['updated', 'name']).optional(),
 });
 
 const routes: FastifyPluginCallback<ContactRoutesOptions> = (app: FastifyInstance, opts, done) => {
@@ -42,7 +44,7 @@ const routes: FastifyPluginCallback<ContactRoutesOptions> = (app: FastifyInstanc
     const header = request.headers['x-operation-id'];
     const given = typeof header === 'string' && /^[\w.:-]{1,128}$/.test(header) ? header : null;
     return {
-      actor: `client:${request.client?.id ?? 'unknown'}`,
+      actor: request.adminSession ? 'dashboard' : `client:${request.client?.id ?? 'unknown'}`,
       operationId: given ?? randomUUID(),
       now: now(),
     };
@@ -66,7 +68,14 @@ const routes: FastifyPluginCallback<ContactRoutesOptions> = (app: FastifyInstanc
   app.get('/v1/contacts', (request, reply) => {
     const q = listQuery.safeParse(request.query);
     if (!q.success) return invalid(reply, q.error);
-    return { contacts: service.list(q.data) };
+    const { contacts, total } = service.listPage(q.data);
+    return { contacts, total };
+  });
+
+  app.get('/v1/contacts/:id/history', (request, reply) => {
+    const p = idParams.safeParse(request.params);
+    if (!p.success) return invalid(reply, p.error);
+    return { history: service.history(p.data.id) };
   });
 
   app.get('/v1/contacts/:id', (request, reply) => {
