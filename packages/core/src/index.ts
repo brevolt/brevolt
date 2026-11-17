@@ -14,3 +14,4 @@ export type {
   UuidV7,
 } from '@brevolt/contracts';
 export * from './normalize/index.js';
+export * from './merge/index.js';
