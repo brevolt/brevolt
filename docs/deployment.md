@@ -42,3 +42,18 @@ cosign verify ghcr.io/<owner>/brevolt:<version> \
   --certificate-identity-regexp 'https://github.com/<owner>/brevolt/.github/workflows/release.yml@.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
+
+## Dokploy
+
+Use `deploy/docker-compose.dokploy.yml`. It is the same stack as `deploy/docker-compose.yml` (same hardening, healthcheck and volumes) but with no host port binding: `server` only does `expose: 3000` and Traefik routes to it.
+
+1. Create a service of type **Compose**, source **Git**, repository `brevolt/brevolt`, branch `main`.
+2. **Compose Path**: `./deploy/docker-compose.dokploy.yml` (the build context `..` resolves to the repo root).
+3. **Environment** tab. Required: `ENCRYPTION_KEY` (`openssl rand -base64 32`), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Optional: `PUBLIC_URL`, `BREVOLT_VERSION`, `LOG_LEVEL`, `BACKUP_INTERVAL_HOURS`, `BACKUP_RETENTION_DAYS`. Do not set `BREVOLT_PORT`; it is not used here.
+4. **Domains** tab: service `server`, port `3000`, your host, HTTPS on (Let's Encrypt).
+5. Set `PUBLIC_URL` to that public URL (e.g. `https://brevolt.example.com`).
+6. In Google Cloud Console, register the OAuth redirect URI under the same host as `PUBLIC_URL` (`<PUBLIC_URL>/<callback path>`); the exact path is defined by the server's Google OAuth flow.
+7. Deploy. `server` becomes `healthy` via `/healthz`; `backup` starts after it.
+
+- Volumes `brevolt-data` (`/data`) and `brevolt-backups` (`/backups`) are named volumes, so they survive redeploys. Do not run "Clean volumes" / delete the service unless you want to drop the data.
+- Keep both compose files in sync when changing the stack.

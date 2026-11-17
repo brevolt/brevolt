@@ -1,0 +1,53 @@
+# Dokploy variant (Compose service, source: Git, Compose Path: ./deploy/docker-compose.dokploy.yml).
+# No host ports: Traefik reaches `server` on 3000 via the domain set in Dokploy's Domains tab.
+# Variables come from Dokploy's Environment tab. See docs/deployment.md#dokploy.
+name: brevolt
+
+x-hardening: &hardening
+  read_only: true
+  user: '1000:1000'
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+  tmpfs: ['/tmp']
+  restart: unless-stopped
+
+services:
+  server:
+    <<: *hardening
+    image: ghcr.io/brevolt/brevolt:${BREVOLT_VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    environment:
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in the Dokploy Environment tab}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID in the Dokploy Environment tab}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?set GOOGLE_CLIENT_SECRET in the Dokploy Environment tab}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    expose:
+      - '3000'
+    volumes:
+      - brevolt-data:/data
+
+  # Daily VACUUM INTO copy on a separate volume; keeps 30 days by default.
+  backup:
+    <<: *hardening
+    image: ghcr.io/brevolt/brevolt:${BREVOLT_VERSION:-latest}
+    command: ['node', 'dist/backup-cli.js']
+    healthcheck:
+      disable: true
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      DATABASE_PATH: /data/brevolt.db
+      BACKUP_DIR: /backups
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    volumes:
+      - brevolt-data:/data
+      - brevolt-backups:/backups
+
+volumes:
+  brevolt-data:
+  brevolt-backups:
