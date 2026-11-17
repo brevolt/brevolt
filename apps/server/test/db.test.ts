@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_MIGRATIONS_FOLDER, openDatabase, schema } from '../src/db/index.js';
 
 const TABLES = [
+  'admin_session',
+  'admin_user',
   'change_log',
   'client',
   'conflict',
@@ -86,7 +88,7 @@ describe('database migrations', () => {
     again.close();
   });
 
-  it.each([0, 1])(
+  it.each([0, 1, 2, 3])(
     'upgrades a database created by the first %i migration(s), keeping data',
     (previous) => {
       const path = join(dir, 'hub.db');

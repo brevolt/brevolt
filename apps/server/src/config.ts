@@ -2,7 +2,14 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 
 /** Secrets that must be provided and never have a default (R-SEC-1, R-SEC-4). */
-const SECRET_VARS = ['ENCRYPTION_KEY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'] as const;
+const SECRET_VARS = [
+  'ENCRYPTION_KEY',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'ADMIN_PASSWORD',
+] as const;
+
+export const MIN_ADMIN_PASSWORD_LENGTH = 12;
 
 export const MIN_ENCRYPTION_KEY_BYTES = 32;
 
@@ -30,6 +37,8 @@ export interface Config {
   readonly encryptionKey: Buffer;
   readonly googleClientId: string;
   readonly googleClientSecret: string;
+  /** Initial dashboard admin password; only used on first startup, when no admin exists yet. */
+  readonly adminPassword: string | undefined;
   readonly publicUrl: string | undefined;
   readonly host: string;
   readonly port: number;
@@ -53,6 +62,13 @@ const schema = z.object({
     ),
   GOOGLE_CLIENT_ID: z.string({ error: 'is required' }).min(1, 'is required'),
   GOOGLE_CLIENT_SECRET: z.string({ error: 'is required' }).min(1, 'is required'),
+  ADMIN_PASSWORD: z
+    .string()
+    .min(
+      MIN_ADMIN_PASSWORD_LENGTH,
+      `must be at least ${String(MIN_ADMIN_PASSWORD_LENGTH)} characters`,
+    )
+    .optional(),
   PUBLIC_URL: z.url({ error: 'must be a valid URL' }).optional(),
   HOST: z.string().min(1, 'must not be empty').default('127.0.0.1'),
   PORT: z
@@ -131,6 +147,7 @@ export function loadConfig(
     encryptionKey: d.ENCRYPTION_KEY,
     googleClientId: d.GOOGLE_CLIENT_ID,
     googleClientSecret: d.GOOGLE_CLIENT_SECRET,
+    adminPassword: d.ADMIN_PASSWORD,
     publicUrl: d.PUBLIC_URL,
     host: d.HOST,
     port: d.PORT,
