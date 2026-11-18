@@ -35,7 +35,7 @@ The `ENCRYPTION_KEY` must be the same one used when the backup was taken; withou
 
 ## Release
 
-Pushing a `v*` tag runs `.github/workflows/release.yml`: it builds and pushes `ghcr.io/<owner>/brevolt`, signs the image with cosign (keyless, GitHub OIDC), and attaches an SPDX SBOM as a signed attestation and as a release asset. Verify with:
+Pushing a `v*` tag runs `.github/workflows/release.yml`: it builds and pushes `ghcr.io/<owner>/brevolt`, signs the image with cosign (keyless, GitHub OIDC), and attaches an SPDX SBOM as a signed attestation (also uploaded as a workflow artifact). Verify with:
 
 ```sh
 cosign verify ghcr.io/<owner>/brevolt:<version> \
@@ -59,7 +59,7 @@ cosign verify-attestation --type spdxjson ghcr.io/brevolt/brevolt:X.Y.Z \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-3. In Dokploy, set `BREVOLT_VERSION=X.Y.Z` in the Environment tab and redeploy (see [Dokploy](#dokploy)).
+3. In Dokploy, set `BREVOLT_VERSION=X.Y.Z` in the Environment tab and redeploy (see [Dokploy](#dokploy)). The deploy log must show a pull, not a build.
 4. Check `curl https://staging.brevolt.app/healthz`, then log in to the dashboard and create a contact.
 
 ## Dokploy
@@ -67,11 +67,11 @@ cosign verify-attestation --type spdxjson ghcr.io/brevolt/brevolt:X.Y.Z \
 Use `deploy/docker-compose.dokploy.yml`. It is the same stack as `deploy/docker-compose.yml` (same hardening, healthcheck and volumes) but with no host port binding: `server` only does `expose: 3000` and Traefik routes to it.
 
 1. Create a service of type **Compose**, source **Git**, repository `brevolt/brevolt`, branch `main`.
-2. **Compose Path**: `./deploy/docker-compose.dokploy.yml` (the build context `..` resolves to the repo root).
-3. **Environment** tab. Required: `ENCRYPTION_KEY` (`openssl rand -base64 32`), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Needed on first start to create the dashboard login: `ADMIN_PASSWORD` (min 12 chars; ignored once the admin exists, remove it afterwards). Optional: `PUBLIC_URL`, `BREVOLT_VERSION`, `LOG_LEVEL`, `BACKUP_INTERVAL_HOURS`, `BACKUP_RETENTION_DAYS`. Do not set `BREVOLT_PORT`; it is not used here.
+2. **Compose Path**: `./deploy/docker-compose.dokploy.yml` (it pulls the published image; there is no `build:`, so set `BREVOLT_VERSION` to a released tag).
+3. **Environment** tab. Required: `ENCRYPTION_KEY` (`openssl rand -base64 32`), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Optional: `ADMIN_PASSWORD` (initial dashboard admin, min 12 chars; read only on first startup), `PUBLIC_URL`, `BREVOLT_VERSION`, `LOG_LEVEL`, `BACKUP_INTERVAL_HOURS`, `BACKUP_RETENTION_DAYS`. Do not set `BREVOLT_PORT`; it is not used here.
 4. **Domains** tab: service `server`, port `3000`, your host, HTTPS on (Let's Encrypt).
 5. Set `PUBLIC_URL` to that public URL (e.g. `https://brevolt.example.com`).
-6. In Google Cloud Console, register the OAuth redirect URI under the same host as `PUBLIC_URL` (`<PUBLIC_URL>/<callback path>`); the exact path is defined by the server's Google OAuth flow.
+6. Deploy. The Google OAuth flow is not implemented yet, so there is no redirect URI to register.
 7. Deploy. `server` becomes `healthy` via `/healthz`; `backup` starts after it.
 
 - Volumes `brevolt-data` (`/data`) and `brevolt-backups` (`/backups`) are named volumes, so they survive redeploys. Do not run "Clean volumes" / delete the service unless you want to drop the data.
