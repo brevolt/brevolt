@@ -43,6 +43,25 @@ cosign verify ghcr.io/<owner>/brevolt:<version> \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
+## Staging
+
+Staging runs the published image, never a local build: `https://staging.brevolt.app`, deployed from `ghcr.io/brevolt/brevolt:0.2.0` (tag `v0.2.0`). The package is public.
+
+1. Cut a release: `git tag vX.Y.Z && git push origin vX.Y.Z`, wait for the Release workflow, then `gh release create vX.Y.Z`.
+2. Verify the image (signature and SBOM attestation):
+
+```sh
+cosign verify ghcr.io/brevolt/brevolt:X.Y.Z \
+  --certificate-identity-regexp '^https://github.com/brevolt/brevolt/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+cosign verify-attestation --type spdxjson ghcr.io/brevolt/brevolt:X.Y.Z \
+  --certificate-identity-regexp '^https://github.com/brevolt/brevolt/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+3. In Dokploy, set `BREVOLT_VERSION=X.Y.Z` in the Environment tab and redeploy (see [Dokploy](#dokploy)).
+4. Check `curl https://staging.brevolt.app/healthz`, then log in to the dashboard and create a contact.
+
 ## Dokploy
 
 Use `deploy/docker-compose.dokploy.yml`. It is the same stack as `deploy/docker-compose.yml` (same hardening, healthcheck and volumes) but with no host port binding: `server` only does `expose: 3000` and Traefik routes to it.
