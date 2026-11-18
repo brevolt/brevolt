@@ -71,8 +71,7 @@ Use `deploy/docker-compose.dokploy.yml`. It is the same stack as `deploy/docker-
 3. **Environment** tab. Required: `ENCRYPTION_KEY` (`openssl rand -base64 32`), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Optional: `ADMIN_PASSWORD` (initial dashboard admin, min 12 chars; read only on first startup), `PUBLIC_URL`, `BREVOLT_VERSION`, `LOG_LEVEL`, `BACKUP_INTERVAL_HOURS`, `BACKUP_RETENTION_DAYS`. Do not set `BREVOLT_PORT`; it is not used here.
 4. **Domains** tab: service `server`, port `3000`, your host, HTTPS on (Let's Encrypt).
 5. Set `PUBLIC_URL` to that public URL (e.g. `https://brevolt.example.com`).
-6. Deploy. The Google OAuth flow is not implemented yet, so there is no redirect URI to register.
-7. Deploy. `server` becomes `healthy` via `/healthz`; `backup` starts after it.
+6. Deploy. `server` becomes `healthy` via `/healthz`; `backup` starts after it. The Google OAuth flow is not implemented yet, so there is no redirect URI to register.
 
 - Volumes `brevolt-data` (`/data`) and `brevolt-backups` (`/backups`) are named volumes, so they survive redeploys. Do not run "Clean volumes" / delete the service unless you want to drop the data.
 - Keep both compose files in sync when changing the stack.
