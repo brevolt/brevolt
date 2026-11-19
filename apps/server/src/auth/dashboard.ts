@@ -8,11 +8,14 @@ import {
   destroySession,
   dummyPasswordHash,
   getAdminPasswordHash,
+  hashPassword,
+  replaceAdminPassword,
   resolveSession,
   verifyPassword,
   type ActiveSession,
 } from './admin.js';
 import { constantTimeEqual } from './tokens.js';
+import { MIN_ADMIN_PASSWORD_LENGTH } from '../config.js';
 import { FailureLimiter, type FailureLimiterOptions } from './rate-limit.js';
 
 export const SESSION_COOKIE = '__Host-brevolt_session';
@@ -229,6 +232,42 @@ const dashboardAuth: FastifyPluginCallback<DashboardAuthOptions> = (
       cookie(SESSION_COOKIE, session.id, Math.floor(SESSION_ABSOLUTE_MS / 1000)),
       cookie(LOGIN_CSRF_COOKIE, '', 0),
     ]);
+    return noStore(reply).send({ csrfToken: session.csrfToken });
+  });
+
+  app.post('/api/settings/password', async (request, reply) => {
+    const t = now();
+    const key = request.ip;
+    const retry = limiter.retryAfterSeconds(key, t.getTime());
+    if (retry > 0) {
+      return reply
+        .code(429)
+        .header('Retry-After', String(retry))
+        .send({ error: 'too_many_requests' });
+    }
+    const current = bodyField(request, 'currentPassword');
+    const next = bodyField(request, 'newPassword');
+    const repeat = bodyField(request, 'repeatPassword');
+    if (current === undefined || next === undefined || repeat === undefined) {
+      return noStore(reply).code(400).send({ error: 'invalid_body' });
+    }
+    const stored = getAdminPasswordHash(opts.db);
+    const valid = await verifyPassword(stored ?? (await dummyPasswordHash()), current);
+    if (!stored || !valid) {
+      limiter.recordFailure(key, t.getTime());
+      return noStore(reply).code(403).send({ error: 'invalid_current_password' });
+    }
+    if (next.length < MIN_ADMIN_PASSWORD_LENGTH) {
+      return noStore(reply).code(400).send({ error: 'password_too_short' });
+    }
+    if (next !== repeat) return noStore(reply).code(400).send({ error: 'password_mismatch' });
+    if (next === current) return noStore(reply).code(400).send({ error: 'password_unchanged' });
+
+    const session = replaceAdminPassword(opts.db, await hashPassword(next), t);
+    reply.header(
+      'Set-Cookie',
+      cookie(SESSION_COOKIE, session.id, Math.floor(SESSION_ABSOLUTE_MS / 1000)),
+    );
     return noStore(reply).send({ csrfToken: session.csrfToken });
   });
 

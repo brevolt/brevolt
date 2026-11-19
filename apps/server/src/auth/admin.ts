@@ -127,3 +127,20 @@ export function destroySession(db: HubDatabase, id: string): void {
     .where(eq(adminSession.idHash, hashSessionId(id)))
     .run();
 }
+
+/**
+ * Stores a new admin password hash and ends every session; returns a fresh session so the
+ * caller stays signed in. Runs in one transaction, so no old session survives a changed password.
+ */
+export function replaceAdminPassword(
+  db: HubDatabase,
+  passwordHash: string,
+  now: Date = new Date(),
+): CreatedSession {
+  return db.transaction((tx) => {
+    tx.update(adminUser).set({ passwordHash }).where(eq(adminUser.id, ADMIN_ID)).run();
+    tx.delete(adminSession).run();
+    // Same connection, so this runs inside the transaction.
+    return createSession(db, now);
+  });
+}
