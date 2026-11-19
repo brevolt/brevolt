@@ -49,9 +49,17 @@ function matchesPrefix(path: string, prefix: string): boolean {
   return path === prefix || path.startsWith(`${prefix}/`);
 }
 
-/** Paths that do not need a dashboard session. Everything else is denied by default. */
+/**
+ * Paths that do not need a dashboard session. Everything else is denied by default.
+ * `/assets` is the public build output (JS/CSS) the SPA needs to render its login screen.
+ */
 function isPublic(path: string): boolean {
-  return path === '/login' || path === '/healthz' || matchesPrefix(path, '/v1');
+  return (
+    matchesPrefix(path, '/login') ||
+    matchesPrefix(path, '/assets') ||
+    path === '/healthz' ||
+    matchesPrefix(path, '/v1')
+  );
 }
 
 export function parseCookies(header: string | undefined): Record<string, string> {
@@ -85,15 +93,6 @@ function html(reply: FastifyReply, body: string, code = 200): FastifyReply {
 
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => `&#${String(c.charCodeAt(0))};`);
-}
-
-function loginPage(csrf: string, error?: string): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Brevolt · Sign in</title></head>
-<body><main><h1>Brevolt</h1>${error ? `<p role="alert">${esc(error)}</p>` : ''}
-<form method="post" action="/login">
-<input type="hidden" name="${CSRF_FIELD}" value="${esc(csrf)}">
-<label>Password <input type="password" name="password" autocomplete="current-password" required autofocus></label>
-<button type="submit">Sign in</button></form></main></body></html>`;
 }
 
 function homePage(csrf: string): string {
@@ -154,10 +153,23 @@ const dashboardAuth: FastifyPluginCallback<DashboardAuthOptions> = (
     if (!SAFE_METHODS.has(request.method) && !originAllowed(request)) {
       return reply.code(403).send({ error: 'forbidden' });
     }
-    if (isPublic(path)) return;
+    if (isPublic(path)) {
+      // The SPA login route uses the session to skip the form when already signed in.
+      if (path === '/login' && request.method === 'GET') {
+        const active = sessionOf(request);
+        if (active) request.adminSession = active.session;
+      }
+      return;
+    }
 
     const found = sessionOf(request);
     if (!found) {
+      if (matchesPrefix(path, '/api')) {
+        // Dashboard JSON API: client tokens are not allowed here, anyone else is unauthenticated.
+        return request.headers.authorization
+          ? reply.code(403).send({ error: 'forbidden' })
+          : reply.code(401).send({ error: 'unauthorized' });
+      }
       if (SAFE_METHODS.has(request.method)) {
         return reply.header('Cache-Control', 'no-store').redirect('/login', 302);
       }
@@ -175,11 +187,14 @@ const dashboardAuth: FastifyPluginCallback<DashboardAuthOptions> = (
     }
   });
 
-  app.get('/login', (request, reply) => {
-    if (sessionOf(request)) return reply.redirect('/', 302);
+  const noStore = (reply: FastifyReply): FastifyReply =>
+    reply.header('Cache-Control', 'no-store').header('X-Content-Type-Options', 'nosniff');
+
+  /** Pre-login CSRF token (double submit): returned in the body and set as a cookie. */
+  app.get('/login/csrf', (_request, reply) => {
     const csrf = randomBytes(32).toString('base64url');
     reply.header('Set-Cookie', cookie(LOGIN_CSRF_COOKIE, csrf, 600));
-    return html(reply, loginPage(csrf));
+    return noStore(reply).send({ csrfToken: csrf });
   });
 
   app.post('/login', async (request, reply) => {
@@ -206,17 +221,15 @@ const dashboardAuth: FastifyPluginCallback<DashboardAuthOptions> = (
       limiter.recordFailure(key, t.getTime());
       const next = randomBytes(32).toString('base64url');
       reply.header('Set-Cookie', cookie(LOGIN_CSRF_COOKIE, next, 600));
-      return html(reply, loginPage(next, 'Incorrect password.'), 401);
+      return noStore(reply).code(401).send({ error: 'invalid_credentials', csrfToken: next });
     }
 
     const session = createSession(opts.db, t);
-    return reply
-      .header('Set-Cookie', [
-        cookie(SESSION_COOKIE, session.id, Math.floor(SESSION_ABSOLUTE_MS / 1000)),
-        cookie(LOGIN_CSRF_COOKIE, '', 0),
-      ])
-      .header('Cache-Control', 'no-store')
-      .redirect('/', 303);
+    reply.header('Set-Cookie', [
+      cookie(SESSION_COOKIE, session.id, Math.floor(SESSION_ABSOLUTE_MS / 1000)),
+      cookie(LOGIN_CSRF_COOKIE, '', 0),
+    ]);
+    return noStore(reply).send({ csrfToken: session.csrfToken });
   });
 
   app.post('/logout', (request, reply) => {

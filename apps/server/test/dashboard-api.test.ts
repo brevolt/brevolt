@@ -38,6 +38,18 @@ const write = (method: 'POST' | 'PATCH' | 'DELETE', url: string, payload?: objec
     headers: { cookie, 'x-csrf-token': csrf, ...h },
   });
 
+describe('SPA shell without a session', () => {
+  it('serves the login route and the build assets, but nothing else', async () => {
+    const login = await app.inject({ method: 'GET', url: '/login' });
+    expect(login.statusCode).toBe(200);
+    expect(login.body).toContain('content=""');
+    const asset = await app.inject({ method: 'GET', url: '/assets/app.js' });
+    expect(asset.statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/contacts' })).statusCode).toBe(302);
+    expect((await app.inject({ method: 'GET', url: '/settings' })).statusCode).toBe(302);
+  });
+});
+
 describe('dashboard session on /v1', () => {
   it('lists, creates, edits, undoes, deletes and exports with a session', async () => {
     const created = await write(
