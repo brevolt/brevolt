@@ -33,8 +33,16 @@ export function Shell() {
         >
           Export JSON
         </a>
-        <form method="post" action="/logout">
-          <input type="hidden" name="_csrf" value={api.csrf()} />
+        <form
+          method="post"
+          action="/logout"
+          onSubmit={(e) => {
+            // The token rotates when the password changes; read the current one at submit time.
+            const field = e.currentTarget.elements.namedItem('_csrf');
+            if (field instanceof HTMLInputElement) field.value = api.csrf();
+          }}
+        >
+          <input type="hidden" name="_csrf" defaultValue={api.csrf()} />
           <button type="submit" className="btn">
             Sign out
           </button>

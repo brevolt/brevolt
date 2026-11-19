@@ -36,7 +36,7 @@ export type Draft = Omit<Contact, 'id' | 'version' | 'updatedAt' | 'deletedAt'>;
 
 export type ApiResult<T> =
   | { ok: true; value: T }
-  | { ok: false; status: number; currentVersion?: number; fields?: string[] };
+  | { ok: false; status: number; error?: string; currentVersion?: number; fields?: string[] };
 
 let sessionCsrf: string | undefined;
 const csrf = (): string =>
@@ -79,6 +79,7 @@ async function call<T>(
   return {
     ok: false,
     status: res.status,
+    ...(typeof json.error === 'string' ? { error: json.error } : {}),
     ...(typeof json.currentVersion === 'number' ? { currentVersion: json.currentVersion } : {}),
     ...(Array.isArray(json.fields) ? { fields: json.fields as string[] } : {}),
   };
@@ -125,6 +126,11 @@ export const api = {
     }),
   saveRegion: (region: string) =>
     call<{ region: string }>('PUT', '/api/settings/region', { body: { region } }),
+  changePassword: (body: {
+    currentPassword: string;
+    newPassword: string;
+    repeatPassword: string;
+  }) => call<{ csrfToken: string }>('POST', '/api/settings/password', { body }),
   list: (q: string, offset: number, limit: number, signal?: AbortSignal) => {
     const params = new URLSearchParams({
       order: 'name',

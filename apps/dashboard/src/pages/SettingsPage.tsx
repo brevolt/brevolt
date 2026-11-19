@@ -1,8 +1,132 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNotify } from '../components/Toast.js';
-import { api, type CreatedToken, type TokenRow } from '../lib/api.js';
+import { api, setCsrf, type CreatedToken, type TokenRow } from '../lib/api.js';
 import { settingsQuery } from '../lib/queries.js';
+
+const MIN_PASSWORD_LENGTH = 12;
+
+/** Client-side checks; the server repeats them. Returns an error message or null. */
+export function passwordError(current: string, next: string, repeat: string): string | null {
+  if (next.length < MIN_PASSWORD_LENGTH) {
+    return `The new password must be at least ${String(MIN_PASSWORD_LENGTH)} characters.`;
+  }
+  if (next !== repeat) return 'The new passwords do not match.';
+  if (next === current) return 'The new password must be different from the current one.';
+  return null;
+}
+
+const SERVER_ERRORS: Record<string, string> = {
+  invalid_current_password: 'The current password is incorrect.',
+  password_too_short: `The new password must be at least ${String(MIN_PASSWORD_LENGTH)} characters.`,
+  password_mismatch: 'The new passwords do not match.',
+  password_unchanged: 'The new password must be different from the current one.',
+};
+
+function ChangePassword() {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [repeat, setRepeat] = useState('');
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const change = useMutation({
+    mutationFn: async () => {
+      const res = await api.changePassword({
+        currentPassword: current,
+        newPassword: next,
+        repeatPassword: repeat,
+      });
+      if (!res.ok) throw new Error(res.error ?? String(res.status));
+      setCsrf(res.value.csrfToken);
+    },
+    onSuccess: () => {
+      setCurrent('');
+      setNext('');
+      setRepeat('');
+      setMessage({ ok: true, text: 'Password changed. Other sessions were signed out.' });
+    },
+    onError: (e: Error) => {
+      setMessage({
+        ok: false,
+        text:
+          SERVER_ERRORS[e.message] ??
+          (e.message === 'too_many_requests'
+            ? 'Too many attempts. Try again later.'
+            : 'Could not change the password.'),
+      });
+    },
+  });
+
+  return (
+    <section className="space-y-3">
+      <h2 className="font-semibold">Change password</h2>
+      <form
+        className="flex max-w-sm flex-col gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const error = passwordError(current, next, repeat);
+          if (error) {
+            setMessage({ ok: false, text: error });
+            return;
+          }
+          setMessage(null);
+          change.mutate();
+        }}
+      >
+        <label className="block">
+          <span className="label">Current password</span>
+          <input
+            className="input"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={current}
+            onChange={(e) => {
+              setCurrent(e.target.value);
+            }}
+          />
+        </label>
+        <label className="block">
+          <span className="label">New password</span>
+          <input
+            className="input"
+            type="password"
+            autoComplete="new-password"
+            required
+            value={next}
+            onChange={(e) => {
+              setNext(e.target.value);
+            }}
+          />
+        </label>
+        <label className="block">
+          <span className="label">Repeat new password</span>
+          <input
+            className="input"
+            type="password"
+            autoComplete="new-password"
+            required
+            value={repeat}
+            onChange={(e) => {
+              setRepeat(e.target.value);
+            }}
+          />
+        </label>
+        <div>
+          <button type="submit" className="btn btn-primary" disabled={change.isPending}>
+            Change password
+          </button>
+        </div>
+        <p
+          role={message?.ok === false ? 'alert' : 'status'}
+          className={message?.ok ? 'text-sm text-ok' : 'text-sm text-destructive'}
+        >
+          {message?.text ?? ''}
+        </p>
+      </form>
+    </section>
+  );
+}
 
 const KINDS: { value: TokenRow['kind']; label: string }[] = [
   { value: 'bridge-macos', label: 'macOS bridge' },
@@ -231,6 +355,8 @@ export function SettingsPage() {
           </button>
         </form>
       </section>
+
+      <ChangePassword />
 
       <section className="space-y-2">
         <h2 className="font-semibold">Connected systems</h2>
