@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Contact, Draft, Field } from './lib/api.js';
+import type { Contact, Draft, Field } from '../lib/api.js';
 
 export const emptyDraft = (): Draft => ({
   prefix: null,
@@ -62,7 +62,7 @@ function clean(d: Draft): Draft {
   out.fields = d.fields
     .map((f) => ({ ...f, label: f.label.trim() || 'other', value: f.value.trim() }))
     .filter((f) => f.value);
-  out.tags = [...new Set(d.tags.map((t) => t.trim()).filter(Boolean))];
+  out.tags = [...new Set(d.tags.map((t) => t.trim().replace(/^#/, '')).filter(Boolean))];
   out.custom = Object.fromEntries(
     Object.entries(d.custom)
       .filter(([k]) => k.trim())
@@ -70,6 +70,8 @@ function clean(d: Draft): Draft {
   );
   return out;
 }
+
+const removeBtn = 'btn px-2 text-muted-foreground hover:text-destructive';
 
 export function ContactForm({ initial, saving, submitLabel, onSubmit, onCancel }: Props) {
   const [d, setD] = useState<Draft>(initial);
@@ -85,23 +87,18 @@ export function ContactForm({ initial, saving, submitLabel, onSubmit, onCancel }
 
   return (
     <form
-      className="form"
+      className="space-y-6"
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit(
-          clean({
-            ...d,
-            tags: tagText.split(','),
-            custom: Object.fromEntries(customRows),
-          }),
-        );
+        onSubmit(clean({ ...d, tags: tagText.split(','), custom: Object.fromEntries(customRows) }));
       }}
     >
-      <div className="grid">
+      <div className="grid gap-3 sm:grid-cols-2">
         {SCALARS.map(([key, label]) => (
-          <label key={key}>
-            {label}
+          <label key={key} className="block">
+            <span className="label">{label}</span>
             <input
+              className="input"
               value={d[key] ?? ''}
               onChange={(e) => {
                 setD((prev) => ({ ...prev, [key]: e.target.value }));
@@ -111,11 +108,12 @@ export function ContactForm({ initial, saving, submitLabel, onSubmit, onCancel }
         ))}
       </div>
 
-      <fieldset>
-        <legend>Phones, emails, addresses and links</legend>
+      <fieldset className="space-y-2">
+        <legend className="label">Phones, emails, addresses and links</legend>
         {d.fields.map((f, i) => (
-          <div className="inline" key={i}>
+          <div className="flex flex-wrap gap-2" key={i}>
             <select
+              className="input w-auto"
               aria-label="Kind"
               value={f.kind}
               onChange={(e) => {
@@ -128,6 +126,7 @@ export function ContactForm({ initial, saving, submitLabel, onSubmit, onCancel }
               <option value="url">url</option>
             </select>
             <input
+              className="input w-28"
               aria-label="Label"
               placeholder="label"
               value={f.label}
@@ -136,6 +135,7 @@ export function ContactForm({ initial, saving, submitLabel, onSubmit, onCancel }
               }}
             />
             <input
+              className="input min-w-0 flex-1"
               aria-label="Value"
               placeholder="value"
               value={f.value}
@@ -145,17 +145,19 @@ export function ContactForm({ initial, saving, submitLabel, onSubmit, onCancel }
             />
             <button
               type="button"
+              className={removeBtn}
               aria-label="Remove field"
               onClick={() => {
                 setD((prev) => ({ ...prev, fields: prev.fields.filter((_, j) => j !== i) }));
               }}
             >
-              ✕
+              ×
             </button>
           </div>
         ))}
         <button
           type="button"
+          className="btn"
           onClick={() => {
             setD((prev) => ({
               ...prev,
@@ -163,13 +165,14 @@ export function ContactForm({ initial, saving, submitLabel, onSubmit, onCancel }
             }));
           }}
         >
-          Add field
+          + Add field
         </button>
       </fieldset>
 
-      <label>
-        Tags (comma separated)
+      <label className="block">
+        <span className="label">Tags (comma separated)</span>
         <input
+          className="input"
           value={tagText}
           onChange={(e) => {
             setTagText(e.target.value);
@@ -177,11 +180,12 @@ export function ContactForm({ initial, saving, submitLabel, onSubmit, onCancel }
         />
       </label>
 
-      <fieldset>
-        <legend>Custom fields</legend>
+      <fieldset className="space-y-2">
+        <legend className="label">Custom fields</legend>
         {customRows.map(([k, v], i) => (
-          <div className="inline" key={i}>
+          <div className="flex flex-wrap gap-2" key={i}>
             <input
+              className="input w-40"
               aria-label="Custom key"
               placeholder="key"
               value={k}
@@ -190,6 +194,7 @@ export function ContactForm({ initial, saving, submitLabel, onSubmit, onCancel }
               }}
             />
             <input
+              className="input min-w-0 flex-1"
               aria-label="Custom value"
               placeholder="value"
               value={v}
@@ -199,28 +204,31 @@ export function ContactForm({ initial, saving, submitLabel, onSubmit, onCancel }
             />
             <button
               type="button"
+              className={removeBtn}
               aria-label="Remove custom field"
               onClick={() => {
                 setCustomRows((rows) => rows.filter((_, j) => j !== i));
               }}
             >
-              ✕
+              ×
             </button>
           </div>
         ))}
         <button
           type="button"
+          className="btn"
           onClick={() => {
             setCustomRows((rows) => [...rows, ['', '']]);
           }}
         >
-          Add custom field
+          + Add custom field
         </button>
       </fieldset>
 
-      <label>
-        Note (Markdown)
+      <label className="block">
+        <span className="label">Note (Markdown)</span>
         <textarea
+          className="input font-mono"
           rows={8}
           value={d.noteMd}
           onChange={(e) => {
@@ -229,11 +237,11 @@ export function ContactForm({ initial, saving, submitLabel, onSubmit, onCancel }
         />
       </label>
 
-      <div className="inline">
-        <button type="submit" disabled={saving}>
+      <div className="flex gap-2">
+        <button type="submit" className="btn btn-primary" disabled={saving}>
           {submitLabel}
         </button>
-        <button type="button" onClick={onCancel}>
+        <button type="button" className="btn" onClick={onCancel}>
           Cancel
         </button>
       </div>

@@ -1,17 +1,5 @@
-export const ROW_HEIGHT = 52;
+export const ROW_HEIGHT = 64;
 export const PAGE_SIZE = 200;
-
-/** Rows to render for a scroll position, with `overscan` extra rows on each side. */
-export function visibleRange(
-  scrollTop: number,
-  viewportHeight: number,
-  total: number,
-  overscan = 6,
-): { start: number; end: number } {
-  const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - overscan);
-  const end = Math.min(total, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + overscan);
-  return { start, end: Math.max(start, end) };
-}
 
 /** Page numbers needed to cover rows `start`..`end` (exclusive). */
 export function pagesFor(start: number, end: number): number[] {

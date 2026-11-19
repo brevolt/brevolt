@@ -38,17 +38,28 @@ export type ApiResult<T> =
   | { ok: true; value: T }
   | { ok: false; status: number; currentVersion?: number; fields?: string[] };
 
+let sessionCsrf: string | undefined;
 const csrf = (): string =>
-  document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+  sessionCsrf ?? document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+export const setCsrf = (token: string): void => {
+  sessionCsrf = token;
+};
 
 export const newOperationId = (): string => crypto.randomUUID();
 
 async function call<T>(
   method: string,
   url: string,
-  opts: { body?: unknown; version?: number; operationId?: string } = {},
+  opts: {
+    body?: unknown;
+    version?: number;
+    operationId?: string;
+    csrf?: string;
+    /** Keep a 401 as a result (login attempts) instead of leaving for the login page. */
+    keep401?: boolean;
+  } = {},
 ): Promise<ApiResult<T>> {
-  const headers: Record<string, string> = { 'x-csrf-token': csrf() };
+  const headers: Record<string, string> = { 'x-csrf-token': opts.csrf ?? csrf() };
   if (opts.body !== undefined) headers['content-type'] = 'application/json';
   if (opts.version !== undefined) headers['if-match'] = String(opts.version);
   if (opts.operationId) headers['x-operation-id'] = opts.operationId;
@@ -58,7 +69,7 @@ async function call<T>(
     credentials: 'same-origin',
     ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
   });
-  if (res.status === 401) {
+  if (res.status === 401 && !opts.keep401) {
     window.location.assign('/login');
     return { ok: false, status: 401 };
   }
@@ -73,7 +84,47 @@ async function call<T>(
   };
 }
 
+export interface TokenRow {
+  id: string;
+  name: string;
+  kind: 'bridge-macos' | 'obsidian';
+  scope: string;
+  createdAt: string;
+  lastSeen: string | null;
+  revokedAt: string | null;
+}
+
+export interface SettingsData {
+  tokens: TokenRow[];
+  region: string;
+  systems: Record<string, string>;
+}
+
+export interface CreatedToken {
+  id: string;
+  name: string;
+  kind: TokenRow['kind'];
+  scope: string;
+  token: string;
+}
+
 export const api = {
+  loginCsrf: () => call<{ csrfToken: string }>('GET', '/login/csrf'),
+  login: (password: string, loginCsrf: string) =>
+    call<{ csrfToken: string }>('POST', '/login', {
+      body: { password },
+      csrf: loginCsrf,
+      keep401: true,
+    }),
+  settings: () => call<SettingsData>('GET', '/api/settings'),
+  createToken: (body: { name: string; kind: TokenRow['kind'] }) =>
+    call<CreatedToken>('POST', '/api/settings/tokens', { body }),
+  revokeToken: (id: string) =>
+    call<{ ok: true }>('POST', `/api/settings/tokens/${encodeURIComponent(id)}/revoke`, {
+      body: {},
+    }),
+  saveRegion: (region: string) =>
+    call<{ region: string }>('PUT', '/api/settings/region', { body: { region } }),
   list: (q: string, offset: number, limit: number, signal?: AbortSignal) => {
     const params = new URLSearchParams({
       order: 'name',
