@@ -49,9 +49,17 @@ function matchesPrefix(path: string, prefix: string): boolean {
   return path === prefix || path.startsWith(`${prefix}/`);
 }
 
-/** Paths that do not need a dashboard session. Everything else is denied by default. */
+/**
+ * Paths that do not need a dashboard session. Everything else is denied by default.
+ * `/assets` is the public build output (JS/CSS) the SPA needs to render its login screen.
+ */
 function isPublic(path: string): boolean {
-  return matchesPrefix(path, '/login') || path === '/healthz' || matchesPrefix(path, '/v1');
+  return (
+    matchesPrefix(path, '/login') ||
+    matchesPrefix(path, '/assets') ||
+    path === '/healthz' ||
+    matchesPrefix(path, '/v1')
+  );
 }
 
 export function parseCookies(header: string | undefined): Record<string, string> {

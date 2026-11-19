@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDatabase, schema, type OpenedDatabase } from '../src/db/index.js';
@@ -235,11 +238,8 @@ describe('default phone region', () => {
 describe('login JSON', () => {
   it('exposes the session CSRF to the SPA page when already signed in', async () => {
     const s = await loginSession();
-    const dir = await import('node:fs').then((fs) => {
-      const d = fs.mkdtempSync('/tmp/brv-spa-');
-      fs.writeFileSync(`${d}/index.html`, '<meta name="csrf-token" content="__CSRF__">');
-      return d;
-    });
+    const dir = mkdtempSync(join(tmpdir(), 'brv-spa-'));
+    writeFileSync(join(dir, 'index.html'), '<meta name="csrf-token" content="__CSRF__">');
     const spa = buildApp({ db: opened.db, dashboardDir: dir });
     await spa.ready();
     const res = await spa.inject({ method: 'GET', url: '/login', headers: { cookie: s.cookie } });
@@ -248,5 +248,6 @@ describe('login JSON', () => {
     expect(anon.statusCode).toBe(200);
     expect(anon.body).toContain('content=""');
     await spa.close();
+    rmSync(dir, { recursive: true, force: true });
   });
 });
