@@ -45,13 +45,13 @@ cosign verify ghcr.io/<owner>/brevolt:<version> \
 
 ## Cut a release
 
-Releases mark versions and publish images for self-hosting (`deploy/docker-compose.yml`). They do not deploy anything: production builds `main` (see [Production](#production)).
+Releases mark versions and publish images for self-hosting (`deploy/docker-compose.yml`) and for [Production](#production). They do not deploy anything: production moves only when `BREVOLT_VERSION` changes in Dokploy.
 
 Run `pnpm release X.Y.Z` from an up-to-date, clean `main` (`pnpm release X.Y.Z --dry-run` runs the checks only). `scripts/release.sh`:
 
 1. Checks the version is newer than the last tag and that CI passed on `HEAD`.
 2. Runs `pnpm install --frozen-lockfile`, `lint`, `format`, `typecheck` and `test`.
-3. Sets `version` in the root `package.json`, commits `chore(release): vX.Y.Z`, tags `vX.Y.Z` and pushes both atomically (the push to `main` also deploys production, with the same code).
+3. Sets `version` in the root `package.json`, commits `chore(release): vX.Y.Z`, tags `vX.Y.Z` and pushes both atomically (the push to `main` also redeploys staging).
 4. Waits for the Release workflow, which builds, pushes, signs and attests the image. The image is never built locally: it would be unsigned and built for the laptop's CPU architecture.
 5. Creates the GitHub release (pre-release while the version is `0.x`) and verifies the signature if `cosign` is installed.
 
@@ -66,53 +66,84 @@ cosign verify-attestation --type spdxjson ghcr.io/brevolt/brevolt:X.Y.Z \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-## Dokploy
+## Environments
 
-Use `deploy/docker-compose.dokploy.yml`. It is the same stack as `deploy/docker-compose.yml` (same hardening, healthcheck and volumes) but with no host port binding: `server` only does `expose: 3000` and Traefik routes to it.
+Two Compose services run on the same Dokploy server, each with its own volumes, `ENCRYPTION_KEY`, Google OAuth client and admin password. Nothing is shared between them.
 
-1. Create a service of type **Compose**, source **Git**, repository `brevolt/brevolt`, branch `main`.
-2. **Compose Path**: `./deploy/docker-compose.dokploy.yml`. Dokploy builds `deploy/Dockerfile` from the checked-out branch; no published image and no version variable are used.
-3. **Environment** tab. Required: `ENCRYPTION_KEY` (`openssl rand -base64 32`), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Optional: `ADMIN_PASSWORD` (initial dashboard admin, min 12 chars; read only on first startup), `PUBLIC_URL`, `LOG_LEVEL`, `BACKUP_INTERVAL_HOURS`, `BACKUP_RETENTION_DAYS`. Do not set `BREVOLT_PORT`; it is not used here.
-4. **Domains** tab: service `server`, port `3000`, your host, HTTPS on (Let's Encrypt).
-5. Set `PUBLIC_URL` to that public URL (e.g. `https://brevolt.example.com`).
-6. Deploy. `server` becomes `healthy` via `/healthz`; `backup` starts after it. The Google OAuth flow is not implemented yet, so there is no redirect URI to register.
+| | Staging | Production |
+|---|---|---|
+| URL | `https://staging.brevolt.app` | Private host, set only in Dokploy (`<prod-host>` below) |
+| Source | Built from `main` on every push | Published image `ghcr.io/brevolt/brevolt:X.Y.Z` |
+| Compose Path | `./deploy/docker-compose.dokploy.yml` | `./deploy/docker-compose.dokploy-release.yml` |
+| Auto-deploy | On | **Off** |
+| Data | Test Apple ID, test Google account and test vault only | Real contacts |
+| Upgrade | Push to `main` | `pnpm release X.Y.Z`, then change `BREVOLT_VERSION` and redeploy |
 
-- Volumes `brevolt-data` (`/data`) and `brevolt-backups` (`/backups`) are named volumes, so they survive redeploys. Do not run "Clean volumes" / delete the service unless you want to drop the data.
-- Keep both compose files in sync when changing the stack. The one intended difference: `deploy/docker-compose.yml` (self-hosting, CI smoke test) pulls a released image (`BREVOLT_VERSION`); the Dokploy file builds from source.
+- Never put real contacts in staging: it deploys every push to `main` without waiting for CI.
+- Clients (macOS bridge, Obsidian plugin) are registered per environment; a staging client token does not work in production and vice versa.
+- Keep the three compose files in sync when changing the stack (hardening, healthcheck, volumes, environment). Intended differences: `deploy/docker-compose.yml` (self-hosting, CI smoke test) binds a host port; `docker-compose.dokploy.yml` builds from source; `docker-compose.dokploy-release.yml` pulls a pinned image and has no fixed project `name:`.
 
-## Production
+## Staging
 
-Production follows `main`: `https://dashboard.brevolt.app` runs whatever `main` builds to. On every push to `main`, Dokploy's auto-deploy pulls `main`, builds `deploy/Dockerfile` on the server and restarts the stack. No image is published and there is no staging step.
+Staging follows `main`: on every push, Dokploy's auto-deploy pulls `main`, builds `deploy/Dockerfile` on the server and restarts the stack.
 
-- Production does not wait for CI. A push with failing tests or a vulnerable dependency is deployed anyway; only a failed build stops it (Dokploy then keeps the running containers). Check CI after every push and `git revert` if it fails.
+- Staging does not wait for CI. A push with failing tests or a vulnerable dependency is deployed anyway; only a failed build stops it (Dokploy then keeps the running containers). Check CI after every push and `git revert` if it fails.
 
 ### Setup
 
-1. DNS: `A` record (or `CNAME`) `dashboard.brevolt.app` pointing to the Dokploy server.
-2. In Dokploy create a Project/Compose service (e.g. project `brevolt-prod`), source **Git**, repository `brevolt/brevolt`, branch `main`, **Compose Path** `./deploy/docker-compose.dokploy.yml`. Turn **on** Dokploy's auto-deploy on Git push.
-3. **Domains** tab: service `server`, port `3000`, host `dashboard.brevolt.app`, HTTPS on, certificate Let's Encrypt.
-4. **Environment** tab (example with placeholders; never commit real values):
+1. DNS: `A` record (or `CNAME`) `staging.brevolt.app` pointing to the Dokploy server.
+2. In Dokploy create a Compose service (e.g. project `brevolt-staging`), source **Git**, repository `brevolt/brevolt`, branch `main`, **Compose Path** `./deploy/docker-compose.dokploy.yml`. Turn **on** auto-deploy on Git push.
+3. **Domains** tab: service `server`, port `3000`, host `staging.brevolt.app`, HTTPS on, certificate Let's Encrypt.
+4. **Environment** tab: same variables as [Production](#production) except `BREVOLT_VERSION` (not used: the image is built from source), with `PUBLIC_URL=https://staging.brevolt.app` and its own `ENCRYPTION_KEY`. Do not set `BREVOLT_PORT`.
+5. Deploy. The log must show a build of `deploy/Dockerfile`. `server` turns `healthy` and then `backup` starts.
+
+## Production
+
+Production runs a published, signed release pinned by `BREVOLT_VERSION`. It only changes when that variable changes and the service is redeployed; pushes to `main` do not touch it. Its host name is private: it lives in DNS and in the Dokploy Domains/Environment tabs only, never in the repository, issues or PRs.
+
+### Prerequisites
+
+- The `ghcr.io/brevolt/brevolt` package is **public** (GitHub → Packages → brevolt → Package settings → Change visibility), so Dokploy pulls it without registry credentials. The image holds no secrets; all configuration comes from the environment.
+- At least one release exists (`pnpm release X.Y.Z`, see [Cut a release](#cut-a-release)).
+
+### Setup
+
+1. DNS: `A` record (or `CNAME`) for `<prod-host>` pointing to the Dokploy server.
+2. In Dokploy create a Compose service in its own project (e.g. `brevolt-prod`), source **Git**, repository `brevolt/brevolt`, branch `main`, **Compose Path** `./deploy/docker-compose.dokploy-release.yml`. Leave auto-deploy **off**.
+3. **Domains** tab: service `server`, port `3000`, host `<prod-host>`, HTTPS on, certificate Let's Encrypt.
+4. **Environment** tab (placeholders; never commit real values):
 
    ```sh
-   PUBLIC_URL=https://dashboard.brevolt.app
+   BREVOLT_VERSION=<X.Y.Z>
+   PUBLIC_URL=https://<prod-host>
    ENCRYPTION_KEY=<new value from: openssl rand -base64 32>
    GOOGLE_CLIENT_ID=<google-oauth-client-id>
    GOOGLE_CLIENT_SECRET=<google-oauth-client-secret>
    ADMIN_PASSWORD=<strong-password-min-12-chars>
    ```
 
-   - `ENCRYPTION_KEY` must be generated for production. Never reuse another environment's. Store it in a password manager: without it, backups cannot be decrypted.
+   - `BREVOLT_VERSION` is required; the deploy fails without it. Use an exact `X.Y.Z`, never `latest` or `X.Y`.
+   - `ENCRYPTION_KEY` must be generated for production. Never reuse staging's. Store it in a password manager: without it, backups cannot be decrypted.
    - `ADMIN_PASSWORD` is read only on the first startup (when no admin exists). After the first login works, delete it from the Environment tab and redeploy.
-5. Deploy. The log must show a build of `deploy/Dockerfile`. `server` turns `healthy` and then `backup` starts.
-6. Check `curl https://dashboard.brevolt.app/healthz` (`{"status":"ok"}`), log in as admin, create a contact. Then remove `ADMIN_PASSWORD` and redeploy.
+   - Optional: `LOG_LEVEL`, `BACKUP_INTERVAL_HOURS`, `BACKUP_RETENTION_DAYS`.
+5. Deploy. The log must show a pull of `ghcr.io/brevolt/brevolt:<X.Y.Z>` (no build). `server` turns `healthy` and then `backup` starts.
+6. Check `curl https://<prod-host>/healthz` (`{"status":"ok"}`) and log in as admin. Then remove `ADMIN_PASSWORD` and redeploy.
 
-### Backups
+### Upgrade
 
-- The `backup` service writes `brevolt-YYYYMMDDTHHMMSSZ.db` to the `brevolt-backups` volume (same Docker host as production) on start and every 24 h; 30 days are kept (see [Backups](#backups)).
+1. Cut the release from `main` (`pnpm release X.Y.Z`) and let staging run it for a while.
+2. Check the latest backup is recent (see [Production backups](#production-backups)).
+3. In Dokploy, set `BREVOLT_VERSION=X.Y.Z` and **Redeploy**. Migrations make a copy of the database before running.
+4. Check `/healthz` and the dashboard.
+
+Dokploy reads the compose file from the current `main` on every redeploy, not from the release tag. Keep `docker-compose.dokploy-release.yml` compatible with the published versions still in use (e.g. a new required variable must be added to the Environment tab before redeploying).
+
+### Rollback
+
+Set `BREVOLT_VERSION` back to the previous version and redeploy. If the bad version applied a migration, restore the pre-migration copy or the latest backup first (see [Restore](#restore)), since an older version may not read the migrated database.
+
+### Production backups
+
+- The `backup` service writes `brevolt-YYYYMMDDTHHMMSSZ.db` to the `brevolt-backups` volume (same Docker host) on start and every 24 h; 30 days are kept (see [Backups](#backups)).
 - Check it runs: in Dokploy open the `backup` container logs and look for a recent backup line, and check that the container is `running`. List files from the Dokploy terminal of `backup`: `ls -l /backups`. The newest file must be less than 24 h old.
 - These are not offsite backups. Restore with the steps in [Restore](#restore) (in Dokploy, stop `server` and `backup`, run the commands from the `backup` container terminal, start again).
-
-### Update and rollback
-
-- Update: push to `main`; Dokploy builds and deploys. Migrations make a copy of the database before running.
-- Rollback: `git revert` the bad commit on `main`; it ships the same way. If the bad version applied a migration, restore the pre-migration copy or latest backup first (see [Restore](#restore)), since an older version may not read the migrated database.

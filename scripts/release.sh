@@ -7,7 +7,8 @@
 # The image is built, pushed to ghcr.io, signed (cosign keyless) and given an SBOM by
 # .github/workflows/release.yml when the tag lands. It is not built here: a local build
 # would be unsigned and would match the laptop's CPU architecture, not the server's.
-# Releases do not deploy production; production follows `main` (docs/deployment.md).
+# Releases do not deploy anything by themselves: the push to `main` redeploys staging, and production
+# moves to the new version only when BREVOLT_VERSION is changed in Dokploy (docs/deployment.md#production).
 set -euo pipefail
 
 usage() {
@@ -80,7 +81,7 @@ git commit --quiet -m "chore(release): $TAG"
 git tag -a "$TAG" -m "$TAG"
 
 step "Pushing main and $TAG"
-# Atomic: either both land or neither does. The push to main also deploys production.
+# Atomic: either both land or neither does. The push to main also redeploys staging.
 git push --atomic origin main "$TAG"
 
 step "Waiting for the Release workflow"
@@ -112,3 +113,4 @@ else
 fi
 
 step "Released $TAG: $IMAGE"
+echo "To upgrade production, set BREVOLT_VERSION=$VERSION in Dokploy and redeploy (docs/deployment.md#production)."
