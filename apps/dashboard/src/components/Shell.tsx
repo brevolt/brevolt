@@ -22,7 +22,7 @@ export function Shell() {
             height={28}
             className="h-7 w-7 shrink-0"
           />
-          <span>brevolt</span>
+          <span className="hidden sm:inline">brevolt</span>
         </Link>
         <nav className="flex flex-1 items-center gap-1" aria-label="Main">
           <Link to="/contacts" className={nav} activeProps={navActive}>
