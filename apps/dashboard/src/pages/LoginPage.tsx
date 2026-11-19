@@ -1,5 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
+import logo128 from '../assets/logo-128.png';
+import logo256 from '../assets/logo-256.png';
 import { api, setCsrf } from '../lib/api.js';
 
 export function LoginPage() {
@@ -45,7 +47,17 @@ export function LoginPage() {
           void submit();
         }}
       >
-        <h1 className="font-mono text-2xl font-medium text-primary">brevolt</h1>
+        <div className="flex flex-col items-center gap-2">
+          <img
+            src={logo128}
+            srcSet={`${logo128} 1x, ${logo256} 2x`}
+            alt="Brevolt"
+            width={64}
+            height={64}
+            className="h-16 w-16"
+          />
+          <h1 className="font-mono text-2xl font-medium text-primary">brevolt</h1>
+        </div>
         {error && (
           <p role="alert" className="text-sm text-destructive">
             {error}
