@@ -1,4 +1,6 @@
 import { Link, Outlet } from '@tanstack/react-router';
+import logo64 from '../assets/logo-64.png';
+import logo128 from '../assets/logo-128.png';
 import { api } from '../lib/api.js';
 
 const nav = 'rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground';
@@ -8,8 +10,19 @@ export function Shell() {
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-2 border-b border-border bg-card px-4 py-2">
-        <Link to="/contacts" className="mr-2 font-mono text-lg font-medium text-primary">
-          brevolt
+        <Link
+          to="/contacts"
+          className="mr-2 flex items-center gap-2 font-mono text-lg font-medium text-primary"
+        >
+          <img
+            src={logo64}
+            srcSet={`${logo64} 1x, ${logo128} 2x`}
+            alt="Brevolt"
+            width={28}
+            height={28}
+            className="h-7 w-7 shrink-0"
+          />
+          <span className="hidden sm:inline">brevolt</span>
         </Link>
         <nav className="flex flex-1 items-center gap-1" aria-label="Main">
           <Link to="/contacts" className={nav} activeProps={navActive}>
