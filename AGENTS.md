@@ -35,7 +35,6 @@ Instructions for AI agents (and humans) working on Brevolt. Read this file befor
 - [ ] Every test listed in the issue exists and passes; coverage thresholds hold (`core` ≥ 95 %, rest ≥ 80 %).
 - [ ] `gitleaks detect` finds nothing.
 - [ ] Docs updated if the API, configuration or deployment changed.
-- [ ] Changeset added if a publishable package changed.
 
 ## Tests
 

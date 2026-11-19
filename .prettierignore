@@ -3,5 +3,4 @@ dist
 coverage
 pnpm-lock.yaml
 spikes
-.changeset/*.md
 docs

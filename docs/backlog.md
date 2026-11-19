@@ -54,7 +54,6 @@ An issue enters development only if it meets the DoR and is closed only if it me
 - [ ] Zero secrets, real data or private URLs in the diff.
 - [ ] New logs free of personal data (R-SEC-9).
 - [ ] Documentation updated if the API, configuration or deployment changes.
-- [ ] Changeset added if the change affects a publishable package.
 - [ ] Code Reviewer review approved and final validation by @raul.
 
 ## Conventions: repository, branches, commits, PRs and CI
@@ -503,12 +502,12 @@ Runbook for @raul to move from the test accounts to his real contacts: prior bac
 
 Coordinated release of the server image, the bridge and the plugin at 1.0.0, with release notes. Depends on: BRV-060, BRV-062.
 
-- **Criteria:** signed image with SBOM, notarized bridge, plugin approved in the directory; release notes generated with Changesets.
+- **Criteria:** signed image with SBOM, notarized bridge, plugin approved in the directory; release notes generated from the merged PRs (`gh release create --generate-notes`).
 
 **Versioning process from here on:**
 
 - **Independent SemVer per piece** (server, bridge, plugin), with the API version (`/v1`) as the shared contract: a breaking API change moves to `/v2` and coexists with `/v1` for at least one minor version.
-- **Changesets** generates versions and changelogs from PRs; a release is a signed tag that triggers the publishing workflows.
+- **`pnpm release X.Y.Z`** (`scripts/release.sh`) bumps the version, tags it and creates the GitHub release with notes generated from the merged PRs; the tag triggers the publishing workflows.
 - **Database migrations** forward-only, with a prior automatic backup (BRV-020); every destructive migration requires an ADR.
 - **Hotfix:** `fix/` branch from `main`, same full CI, patch release; if the bug affects data, a notice is published first in the README and in the release notes.
 - **Security advisories** via GitHub Security Advisories, following `SECURITY.md`.
