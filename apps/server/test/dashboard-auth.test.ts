@@ -51,8 +51,10 @@ const valueOf = (line: string | undefined): string =>
   (line ?? '').split(';')[0]?.split('=')[1] ?? '';
 
 async function loginCsrf(): Promise<string> {
-  const res = await app.inject({ method: 'GET', url: '/login' });
-  return valueOf(setCookies(res)[LOGIN_CSRF_COOKIE]);
+  const res = await app.inject({ method: 'GET', url: '/login/csrf' });
+  const { csrfToken } = res.json<{ csrfToken: string }>();
+  expect(valueOf(setCookies(res)[LOGIN_CSRF_COOKIE])).toBe(csrfToken);
+  return csrfToken;
 }
 
 async function login(password = PASSWORD, csrf?: string) {
@@ -61,16 +63,16 @@ async function login(password = PASSWORD, csrf?: string) {
     method: 'POST',
     url: '/login',
     headers: {
-      'content-type': 'application/x-www-form-urlencoded',
+      'x-csrf-token': token,
       cookie: `${LOGIN_CSRF_COOKIE}=${token}`,
     },
-    payload: new URLSearchParams({ password, [CSRF_FIELD]: token }).toString(),
+    payload: { password },
   });
 }
 
 async function session(): Promise<string> {
   const res = await login();
-  expect(res.statusCode).toBe(303);
+  expect(res.statusCode).toBe(200);
   return valueOf(setCookies(res)[SESSION_COOKIE]);
 }
 
@@ -126,7 +128,7 @@ describe('route protection', () => {
   });
 
   it('leaves the login, health and token-protected API outside the session guard', async () => {
-    expect((await app.inject({ method: 'GET', url: '/login' })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/login/csrf' })).statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: '/healthz' })).statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: '/v1/contacts' })).statusCode).toBe(401);
   });
@@ -144,8 +146,8 @@ describe('route protection', () => {
 describe('login', () => {
   it('logs in with the right password and sets a hardened cookie', async () => {
     const res = await login();
-    expect(res.statusCode).toBe(303);
-    expect(res.headers.location).toBe('/');
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ csrfToken: string }>().csrfToken).toBe(sessionCsrf());
     const line = setCookies(res)[SESSION_COOKIE] ?? '';
     for (const attr of ['HttpOnly', 'Secure', 'SameSite=Strict', 'Path=/']) {
       expect(line).toContain(attr);
@@ -168,7 +170,7 @@ describe('login', () => {
     const res = await login('wrong password');
     expect(res.statusCode).toBe(401);
     expect(setCookies(res)[SESSION_COOKIE]).toBeUndefined();
-    expect(res.body).toContain('Incorrect password');
+    expect(res.json<{ error: string }>().error).toBe('invalid_credentials');
     expect(opened.db.select().from(schema.adminSession).all()).toHaveLength(0);
   });
 
@@ -183,14 +185,11 @@ describe('login', () => {
     expect(blocked.statusCode).toBe(429);
     expect(blocked.headers['retry-after']).toBeDefined();
     clock = new Date(clock.getTime() + 61_000);
-    expect((await login()).statusCode).toBe(303);
+    expect((await login()).statusCode).toBe(200);
   });
 
-  it('redirects an already logged-in visitor away from the login page', async () => {
-    const id = await session();
-    const res = await app.inject({ method: 'GET', url: '/login', headers: withSession(id) });
-    expect(res.statusCode).toBe(302);
-    expect(res.headers.location).toBe('/');
+  it('sends no body-less HTML login any more: the page belongs to the SPA', async () => {
+    expect((await app.inject({ method: 'GET', url: '/login' })).statusCode).toBe(404);
   });
 });
 
@@ -241,7 +240,6 @@ describe('CSRF', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/login',
-      headers: { 'content-type': 'application/json' },
       payload: { password: PASSWORD },
     });
     expect(res.statusCode).toBe(403);
@@ -252,10 +250,7 @@ describe('CSRF', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/login',
-      headers: {
-        'content-type': 'application/json',
-        cookie: `${LOGIN_CSRF_COOKIE}=${real}`,
-      },
+      headers: { cookie: `${LOGIN_CSRF_COOKIE}=${real}` },
       payload: { password: PASSWORD, [CSRF_FIELD]: 'attacker-value' },
     });
     expect(res.statusCode).toBe(403);
@@ -322,21 +317,22 @@ describe('login E2E over HTTP', () => {
     expect(first.status).toBe(302);
     expect(first.headers.get('location')).toBe('/login');
 
-    const form = await fetch(`${base}/login`, manual);
-    const csrf = parseCookies(form.headers.getSetCookie().join('; '))[LOGIN_CSRF_COOKIE] ?? '';
-    const html = await form.text();
-    expect(html).toContain(`name="${CSRF_FIELD}" value="${csrf}"`);
+    const pre = await fetch(`${base}/login/csrf`);
+    const csrf = parseCookies(pre.headers.getSetCookie().join('; '))[LOGIN_CSRF_COOKIE] ?? '';
+    expect(((await pre.json()) as { csrfToken: string }).csrfToken).toBe(csrf);
 
     const post = await fetch(`${base}/login`, {
       ...manual,
       method: 'POST',
       headers: {
-        'content-type': 'application/x-www-form-urlencoded',
+        'content-type': 'application/json',
+        'x-csrf-token': csrf,
         cookie: `${LOGIN_CSRF_COOKIE}=${csrf}`,
       },
-      body: new URLSearchParams({ password: PASSWORD, [CSRF_FIELD]: csrf }),
+      body: JSON.stringify({ password: PASSWORD }),
     });
-    expect(post.status).toBe(303);
+    expect(post.status).toBe(200);
+    const sessionCsrf = ((await post.json()) as { csrfToken: string }).csrfToken;
     const cookieHeader = post.headers
       .getSetCookie()
       .map((c) => c.split(';')[0])
@@ -345,8 +341,6 @@ describe('login E2E over HTTP', () => {
 
     const home = await fetch(`${base}/`, { ...manual, headers: { cookie: cookieHeader } });
     expect(home.status).toBe(200);
-    const homeHtml = await home.text();
-    const sessionCsrf = /name="_csrf" value="([^"]+)"/.exec(homeHtml)?.[1] ?? '';
 
     const out = await fetch(`${base}/logout`, {
       ...manual,
