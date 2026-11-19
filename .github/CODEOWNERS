@@ -1,0 +1,5 @@
+# Code owners for Brevolt.
+# Owners are requested automatically as reviewers on every PR that touches
+# the matching paths. Later rules take precedence over earlier ones.
+
+* @raulanatol
