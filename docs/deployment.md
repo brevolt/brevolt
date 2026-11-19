@@ -82,14 +82,14 @@ Use `deploy/docker-compose.dokploy.yml`. It is the same stack as `deploy/docker-
 
 ## Production
 
-Production follows `main`: `https://dashboard.brevolt.app` runs whatever `main` builds to. When every CI job passes on a push to `main`, the `deploy` job calls the Dokploy deploy webhook; Dokploy pulls `main`, builds `deploy/Dockerfile` on the server and restarts the stack. No image is published and there is no staging step.
+Production follows `main`: `https://dashboard.brevolt.app` runs whatever `main` builds to. On every push to `main`, Dokploy's auto-deploy pulls `main`, builds `deploy/Dockerfile` on the server and restarts the stack. No image is published and there is no staging step.
 
-- Known gap: Dokploy builds the head of `main` at the time of the webhook. If another commit lands while CI runs, that newer commit is deployed before its own CI finishes.
+- Production does not wait for CI. A push with failing tests or a vulnerable dependency is deployed anyway; only a failed build stops it (Dokploy then keeps the running containers). Check CI after every push and `git revert` if it fails.
 
 ### Setup
 
 1. DNS: `A` record (or `CNAME`) `dashboard.brevolt.app` pointing to the Dokploy server.
-2. In Dokploy create a Project/Compose service (e.g. project `brevolt-prod`), source **Git**, repository `brevolt/brevolt`, branch `main`, **Compose Path** `./deploy/docker-compose.dokploy.yml`. Turn **off** Dokploy's auto-deploy on Git push: it would deploy code that has not passed CI. CI triggers the deploy instead (step 5).
+2. In Dokploy create a Project/Compose service (e.g. project `brevolt-prod`), source **Git**, repository `brevolt/brevolt`, branch `main`, **Compose Path** `./deploy/docker-compose.dokploy.yml`. Turn **on** Dokploy's auto-deploy on Git push.
 3. **Domains** tab: service `server`, port `3000`, host `dashboard.brevolt.app`, HTTPS on, certificate Let's Encrypt.
 4. **Environment** tab (example with placeholders; never commit real values):
 
@@ -103,9 +103,8 @@ Production follows `main`: `https://dashboard.brevolt.app` runs whatever `main` 
 
    - `ENCRYPTION_KEY` must be generated for production. Never reuse another environment's. Store it in a password manager: without it, backups cannot be decrypted.
    - `ADMIN_PASSWORD` is read only on the first startup (when no admin exists). After the first login works, delete it from the Environment tab and redeploy.
-5. Copy the compose service's deploy webhook URL from Dokploy and store it as the GitHub repository secret `DOKPLOY_DEPLOY_WEBHOOK`. Without it, the `deploy` job fails and nothing is deployed.
-6. Deploy. The log must show a build of `deploy/Dockerfile`. `server` turns `healthy` and then `backup` starts.
-7. Check `curl https://dashboard.brevolt.app/healthz` (`{"status":"ok"}`), log in as admin, create a contact. Then remove `ADMIN_PASSWORD` and redeploy.
+5. Deploy. The log must show a build of `deploy/Dockerfile`. `server` turns `healthy` and then `backup` starts.
+6. Check `curl https://dashboard.brevolt.app/healthz` (`{"status":"ok"}`), log in as admin, create a contact. Then remove `ADMIN_PASSWORD` and redeploy.
 
 ### Backups
 
@@ -115,5 +114,5 @@ Production follows `main`: `https://dashboard.brevolt.app` runs whatever `main` 
 
 ### Update and rollback
 
-- Update: merge to `main`. CI passes, then Dokploy builds and deploys. Migrations make a copy of the database before running.
+- Update: push to `main`; Dokploy builds and deploys. Migrations make a copy of the database before running.
 - Rollback: `git revert` the bad commit on `main`; it ships the same way. If the bad version applied a migration, restore the pre-migration copy or latest backup first (see [Restore](#restore)), since an older version may not read the migrated database.

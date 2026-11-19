@@ -11,8 +11,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  # Never cancel a run on `main`: it may be publishing the image or deploying production.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   lint:
@@ -139,23 +138,3 @@ jobs:
             'rm -f /data/brevolt.db-wal /data/brevolt.db-shm; cp "$(ls /backups/brevolt-*.db | sort | tail -n1)" /data/brevolt.db'
           docker compose up -d --no-build --wait --wait-timeout 90
           q "console.log(d.prepare('SELECT v FROM drill').get().v)" | grep -x kept
-
-  # Every green push to `main` deploys production: Dokploy pulls `main` and builds deploy/Dockerfile.
-  deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [lint, typecheck, test, e2e, secrets, audit, docker]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    concurrency:
-      group: deploy-production
-      cancel-in-progress: false
-    steps:
-      - name: Trigger Dokploy deploy
-        env:
-          DOKPLOY_DEPLOY_WEBHOOK: ${{ secrets.DOKPLOY_DEPLOY_WEBHOOK }}
-        run: |
-          if [ -z "$DOKPLOY_DEPLOY_WEBHOOK" ]; then
-            echo "::error::DOKPLOY_DEPLOY_WEBHOOK secret is not set; production was not deployed"
-            exit 1
-          fi
-          curl -fsS --retry 3 -X POST "$DOKPLOY_DEPLOY_WEBHOOK" -o /dev/null

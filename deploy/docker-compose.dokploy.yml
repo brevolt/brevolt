@@ -1,7 +1,7 @@
 # Dokploy variant (Compose service, source: Git, Compose Path: ./deploy/docker-compose.dokploy.yml).
 # No host ports: Traefik reaches `server` on 3000 via the domain set in Dokploy's Domains tab.
 # Variables come from Dokploy's Environment tab. See docs/deployment.md#dokploy.
-# Dokploy builds the image from the checked-out branch (`main`); CI triggers the deploy once it is green.
+# Dokploy builds the image from the checked-out branch (`main`); Dokploy's auto-deploy runs it on every push.
 # Published images (ghcr.io) are only for releases; this file does not use them.
 name: brevolt
 
