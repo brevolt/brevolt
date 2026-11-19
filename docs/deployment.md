@@ -75,3 +75,39 @@ Use `deploy/docker-compose.dokploy.yml`. It is the same stack as `deploy/docker-
 
 - Volumes `brevolt-data` (`/data`) and `brevolt-backups` (`/backups`) are named volumes, so they survive redeploys. Do not run "Clean volumes" / delete the service unless you want to drop the data.
 - Keep both compose files in sync when changing the stack.
+
+## Production
+
+Production runs the same published image as staging, in its own Dokploy app: `https://dashboard.brevolt.app`, deployed from `ghcr.io/brevolt/brevolt:0.2.0` (tag `v0.2.0`; no image changes on `main` since that tag). Cut and verify a new tag first if you need a newer version (see [Staging](#staging) steps 1 and 2).
+
+### Setup
+
+1. DNS: `A` record (or `CNAME`) `dashboard.brevolt.app` pointing to the Dokploy server.
+2. In Dokploy create a **separate** Project/Compose service from staging (e.g. project `brevolt-prod`), source **Git**, repository `brevolt/brevolt`, branch `main`, **Compose Path** `./deploy/docker-compose.dokploy.yml`. Because the compose project is separate, the named volumes `brevolt-data` (`/data`) and `brevolt-backups` (`/backups`) are its own and never shared with staging.
+3. **Domains** tab: service `server`, port `3000`, host `dashboard.brevolt.app`, HTTPS on, certificate Let's Encrypt.
+4. **Environment** tab (example with placeholders; never commit real values):
+
+   ```sh
+   BREVOLT_VERSION=0.2.0
+   PUBLIC_URL=https://dashboard.brevolt.app
+   ENCRYPTION_KEY=<new value from: openssl rand -base64 32>
+   GOOGLE_CLIENT_ID=<google-oauth-client-id>
+   GOOGLE_CLIENT_SECRET=<google-oauth-client-secret>
+   ADMIN_PASSWORD=<strong-password-min-12-chars>
+   ```
+
+   - `ENCRYPTION_KEY` must be generated for production. Never reuse staging's. Store it in a password manager: without it, backups cannot be decrypted.
+   - `ADMIN_PASSWORD` is read only on the first startup (when no admin exists). After the first login works, delete it from the Environment tab and redeploy.
+5. Deploy. The log must show an image pull, not a build. `server` turns `healthy` and then `backup` starts.
+6. Check `curl https://dashboard.brevolt.app/healthz` (`{"status":"ok"}`), log in as admin, create a contact. Then remove `ADMIN_PASSWORD` and redeploy.
+
+### Backups
+
+- The `backup` service writes `brevolt-YYYYMMDDTHHMMSSZ.db` to the `brevolt-backups` volume (same Docker host as production) on start and every 24 h; 30 days are kept (see [Backups](#backups)).
+- Check it runs: in Dokploy open the `backup` container logs and look for a recent backup line, and check that the container is `running`. List files from the Dokploy terminal of `backup`: `ls -l /backups`. The newest file must be less than 24 h old.
+- These are not offsite backups. Restore with the steps in [Restore](#restore) (in Dokploy, stop `server` and `backup`, run the commands from the `backup` container terminal, start again).
+
+### Update and rollback
+
+- Update: cut and verify the new tag (see [Staging](#staging)), try it in staging first, then set `BREVOLT_VERSION=<new>` in the production Environment tab and redeploy. Migrations make a copy of the database before running.
+- Rollback: set `BREVOLT_VERSION` back to the previous tag (e.g. `0.2.0`) and redeploy. If the new version applied a migration, restore the pre-migration copy or latest backup first (see [Restore](#restore)), since an older version may not read the migrated database.
