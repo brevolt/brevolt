@@ -1,6 +1,8 @@
 # Dokploy variant (Compose service, source: Git, Compose Path: ./deploy/docker-compose.dokploy.yml).
 # No host ports: Traefik reaches `server` on 3000 via the domain set in Dokploy's Domains tab.
 # Variables come from Dokploy's Environment tab. See docs/deployment.md#dokploy.
+# Dokploy builds the image from the checked-out branch (`main`); CI triggers the deploy once it is green.
+# Published images (ghcr.io) are only for releases; this file does not use them.
 name: brevolt
 
 x-hardening: &hardening
@@ -14,8 +16,10 @@ x-hardening: &hardening
 services:
   server:
     <<: *hardening
-    image: ghcr.io/brevolt/brevolt:${BREVOLT_VERSION:-latest}
-    pull_policy: always
+    image: brevolt:local
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
     environment:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in the Dokploy Environment tab}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID in the Dokploy Environment tab}
@@ -31,7 +35,9 @@ services:
   # Daily VACUUM INTO copy on a separate volume; keeps 30 days by default.
   backup:
     <<: *hardening
-    image: ghcr.io/brevolt/brevolt:${BREVOLT_VERSION:-latest}
+    # Reuses the image built for `server`.
+    image: brevolt:local
+    pull_policy: never
     command: ['node', 'dist/backup-cli.js']
     healthcheck:
       disable: true
