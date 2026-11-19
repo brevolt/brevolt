@@ -13,10 +13,9 @@
     "format:write": "prettier --write .",
     "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck",
     "test": "vitest run",
-    "changeset": "changeset"
+    "release": "scripts/release.sh"
   },
   "devDependencies": {
-    "@changesets/cli": "^3.0.3",
     "eslint": "^10.15.0",
     "prettier": "^3.10.1",
     "typescript": "^6.0.3",
