@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cut a release: bump the project version, tag it and let CI publish the image.
+# Cut a release: tag the current `main` and let CI publish the image.
 #
 #   scripts/release.sh 0.3.0            # full release
 #   scripts/release.sh 0.3.0 --dry-run  # run every check, change nothing
@@ -7,8 +7,10 @@
 # The image is built, pushed to ghcr.io, signed (cosign keyless) and given an SBOM by
 # .github/workflows/release.yml when the tag lands. It is not built here: a local build
 # would be unsigned and would match the laptop's CPU architecture, not the server's.
-# Releases do not deploy anything by themselves: the push to `main` redeploys staging, and production
-# moves to the new version only when BREVOLT_VERSION is changed in Dokploy (docs/deployment.md#production).
+# `main` only accepts changes through pull requests, so the script never commits or pushes `main`:
+# it tags the commit already on origin/main and pushes only the tag. The tag is the version; the
+# root package.json version is not used. Releases do not deploy anything: production moves to the new
+# version only when BREVOLT_VERSION is changed in Dokploy (docs/deployment.md#production).
 set -euo pipefail
 
 usage() {
@@ -32,7 +34,7 @@ fail() {
   exit 1
 }
 
-for cmd in git gh pnpm node; do
+for cmd in git gh pnpm; do
   command -v "$cmd" >/dev/null || fail "$cmd is required"
 done
 
@@ -65,24 +67,19 @@ pnpm typecheck
 pnpm test
 
 if $DRY_RUN; then
-  step "Dry run: would bump package.json to $VERSION, commit, tag $TAG and push"
+  step "Dry run: would tag $(git rev-parse --short HEAD) as $TAG and push the tag"
   exit 0
 fi
 
-step "Bumping the version to $VERSION"
-node -e '
-  const fs = require("node:fs");
-  const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-  pkg.version = process.argv[1];
-  fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
-' "$VERSION"
-git add package.json
-git commit --quiet -m "chore(release): $TAG"
+step "Tagging $(git rev-parse --short HEAD) as $TAG"
 git tag -a "$TAG" -m "$TAG"
 
-step "Pushing main and $TAG"
-# Atomic: either both land or neither does. The push to main also redeploys staging.
-git push --atomic origin main "$TAG"
+step "Pushing $TAG"
+if ! git push origin "refs/tags/$TAG"; then
+  # Drop the local tag so the release can be retried once the push problem is fixed.
+  git tag -d "$TAG" >/dev/null
+  fail "could not push $TAG"
+fi
 
 step "Waiting for the Release workflow"
 RUN_ID=""
