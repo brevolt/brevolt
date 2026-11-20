@@ -27,11 +27,16 @@ async function main(): Promise<void> {
   }
   const app = buildApp({
     db: database.db,
+    version: config.version,
     ...(config.dashboardDir ? { dashboardDir: config.dashboardDir } : {}),
   });
   app.listen({ port: config.port, host: config.host }).then(
     () => {
-      logger.info('server listening', { host: config.host, port: config.port });
+      logger.info('server listening', {
+        host: config.host,
+        port: config.port,
+        version: config.version,
+      });
     },
     () => {
       logger.error('server failed to start');

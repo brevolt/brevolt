@@ -204,6 +204,7 @@ describe('healthz', () => {
     expect(health.statusCode).toBe(200);
     expect(health.json()).toEqual({
       status: 'ok',
+      version: 'dev',
       database: 'ok',
       adapters: {},
       time: '2026-02-01T10:00:00.000Z',
@@ -223,6 +224,13 @@ describe('healthz', () => {
     const res = await full.inject({ method: 'GET', url: '/healthz' });
     expect(res.statusCode).toBe(503);
     expect(res.json()).toMatchObject({ status: 'down', database: 'down' });
+    await full.close();
+  });
+
+  it('reports the running version', async () => {
+    const full = buildApp({ db: opened.db, version: '0.3.1' });
+    const res = await full.inject({ method: 'GET', url: '/healthz' });
+    expect(res.json()).toMatchObject({ status: 'ok', version: '0.3.1' });
     await full.close();
   });
 });
