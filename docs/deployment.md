@@ -10,6 +10,7 @@ curl http://127.0.0.1:3000/healthz      # {"status":"ok"}
 
 - Image: minimal Alpine base, user `node` (non-root), read-only root file system, all capabilities dropped. Only `/data` (database) and `/backups` (backup service) are writable volumes, plus a `/tmp` tmpfs.
 - The port is bound to `127.0.0.1`; expose it only through Tailscale or a reverse proxy.
+- Version: `/healthz` and the startup log report `version`. Release images carry their `X.Y.Z` (baked in by the Release workflow); any other build, such as staging built from `main`, reports `dev`. The compose files use `BREVOLT_VERSION` only to choose the image, so it never overrides the version inside the container.
 - Secrets come from `deploy/.env` (never committed). Do not put them in the image.
 
 ## Backups
@@ -134,7 +135,7 @@ Production runs a published, signed release pinned by `BREVOLT_VERSION`. It only
 1. Cut the release from `main` (`pnpm release X.Y.Z`) and let staging run it for a while.
 2. Check the latest backup is recent (see [Production backups](#production-backups)).
 3. In Dokploy, set `BREVOLT_VERSION=X.Y.Z` and **Redeploy**. Migrations make a copy of the database before running.
-4. Check `/healthz` and the dashboard.
+4. Check `/healthz` reports the new `version` and check the dashboard.
 
 Dokploy reads the compose file from the current `main` on every redeploy, not from the release tag. Keep `docker-compose.dokploy-release.yml` compatible with the published versions still in use (e.g. a new required variable must be added to the Environment tab before redeploying).
 

@@ -35,7 +35,12 @@ describe('loadConfig', () => {
       port: 3000,
       logLevel: 'info',
       databasePath: '/data/brevolt.db',
+      version: 'dev',
     });
+  });
+
+  it('reads the running version from BREVOLT_VERSION', () => {
+    expect(loadConfig({ ...valid, BREVOLT_VERSION: '0.3.1' }).version).toBe('0.3.1');
   });
 
   it.each(['ENCRYPTION_KEY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'DATABASE_PATH'])(
@@ -126,5 +131,9 @@ describe('loadConfig', () => {
 describe('empty optional variables', () => {
   it('treats an empty PUBLIC_URL as unset', () => {
     expect(loadConfig({ ...valid, PUBLIC_URL: '' }).publicUrl).toBeUndefined();
+  });
+
+  it('treats an empty BREVOLT_VERSION as dev', () => {
+    expect(loadConfig({ ...valid, BREVOLT_VERSION: '' }).version).toBe('dev');
   });
 });

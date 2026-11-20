@@ -41,6 +41,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BREVOLT_VERSION=${{ steps.meta.outputs.version }}
           provenance: true
       - uses: sigstore/cosign-installer@v3
       - name: Sign image
