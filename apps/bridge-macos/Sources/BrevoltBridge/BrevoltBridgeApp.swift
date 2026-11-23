@@ -19,10 +19,54 @@ final class AppModel: ObservableObject {
     private let settingsStore = SettingsStore()
     private let tokens = TokenStore(store: KeychainStore())
     private let toggle = SyncToggle(access: SystemContactsAccess())
+    private let checkpoints = DefaultsCheckpointStore()
+    private var monitor: ContactsChangeMonitor?
+    private var scheduler: SyncScheduler?
+    private var timer: Timer?
 
     init() {
         settings = settingsStore.load()
         refreshStatus()
+        configureSync()
+    }
+
+    /// Contacts are touched only while sync is enabled and not paused.
+    private func configureSync() {
+        monitor = nil; scheduler = nil; timer?.invalidate(); timer = nil
+        guard settings.syncEnabled, !settings.paused, !settings.containerID.isEmpty else { return }
+        let scheduler = SyncScheduler { [weak self] in await self?.performSync() }
+        self.scheduler = scheduler
+        monitor = ContactsChangeMonitor { Task { await scheduler.request() } }
+        // Safety net for notifications iCloud coalesces or drops.
+        timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { _ in Task { await scheduler.request() } }
+        Task { await scheduler.request() }
+    }
+
+    private func performSync() async {
+        let s = settings
+        do {
+            let client = try BridgeClient(serverURL: s.serverURL, tokenProvider: { [tokens] in try tokens.token() },
+                                          session: BridgeClient.makeSession())
+            let uploader = ContactsUploader(store: SystemContactsStore(), client: client,
+                                            checkpoints: checkpoints, containerID: s.containerID)
+            try await RetryPolicy().run { try await uploader.sync() }
+            state.lastSync = Date()
+            state.pendingCount = 0
+            state.status = .synced
+        } catch {
+            state.status = .error(Self.describe(error))
+        }
+    }
+
+    private static func describe(_ e: Error) -> String {
+        switch e {
+        case BridgeClientError.http(let s): return "server returned \(s)"
+        case BridgeClientError.missingToken: return "missing token"
+        case BridgeClientError.insecureServerURL: return "server URL must be https"
+        case BridgeClientError.invalidServerURL: return "invalid server URL"
+        case is URLError: return "network unavailable"
+        default: return "sync failed"
+        }
     }
 
     var hasToken: Bool { ((try? tokens.token()) ?? nil) != nil }
@@ -37,6 +81,7 @@ final class AppModel: ObservableObject {
             if !tokenDraft.isEmpty { try tokens.save(tokenDraft); tokenDraft = "" }
         } catch { message = "Could not store the token in the Keychain." }
         refreshStatus()
+        configureSync()
     }
 
     func setSync(_ on: Bool) {
@@ -45,19 +90,20 @@ final class AppModel: ObservableObject {
             if on && !settings.syncEnabled { message = "Contacts access was not granted." }
             settingsStore.save(settings)
             refreshStatus()
+            configureSync()
         }
     }
 
     func syncNow() {
-        // Sync engine arrives in BRV-035/036; the skeleton only marks the attempt.
-        guard settings.syncEnabled, !settings.paused else { return }
-        state.lastSync = Date()
+        guard settings.syncEnabled, !settings.paused, let scheduler else { return }
+        Task { await scheduler.request() }
     }
 
     func togglePause() {
         settings.paused.toggle()
         settingsStore.save(settings)
         refreshStatus()
+        configureSync()
     }
 
     var launchAtLogin: Bool {

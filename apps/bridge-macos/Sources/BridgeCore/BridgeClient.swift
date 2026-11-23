@@ -37,9 +37,12 @@ public final class BridgeClient {
         return URLSession(configuration: config)
     }
 
-    public func upload(changes: [IncomingChange]) async throws {
-        struct Body: Encodable { let changes: [IncomingChange] }
-        _ = try await send("POST", "/v1/bridge/changes", body: try encoder.encode(Body(changes: changes)))
+    /// `snapshot` marks a full read after the history token expired (R-BR-5).
+    @discardableResult
+    public func upload(changes: [IncomingChange], snapshot: Bool = false) async throws -> ChangesResponse {
+        struct Body: Encodable { let snapshot: Bool; let changes: [IncomingChange] }
+        let data = try await send("POST", "/v1/bridge/changes", body: try encoder.encode(Body(snapshot: snapshot, changes: changes)))
+        do { return try decoder.decode(ChangesResponse.self, from: data) } catch { throw BridgeClientError.invalidResponse }
     }
 
     public func pending(cursor: String?) async throws -> PendingResponse {

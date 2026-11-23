@@ -1,0 +1,14 @@
+{
+  "acks": [
+    {
+      "operation_id": "pend:0190a000-0000-7000-8000-000000000001:abc",
+      "status": "ok",
+      "local_id": "E5F6:ABPerson"
+    },
+    {
+      "operation_id": "pend:0190a000-0000-7000-8000-000000000002:def",
+      "status": "error",
+      "error": "save failed"
+    }
+  ]
+}
