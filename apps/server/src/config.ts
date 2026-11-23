@@ -45,6 +45,8 @@ export interface Config {
   readonly host: string;
   readonly port: number;
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
+  /** Running version: the release (e.g. `0.3.1`) baked into the image, or `dev` for any other build. */
+  readonly version: string;
 }
 
 export type ReadFile = (path: string) => string;
@@ -83,6 +85,7 @@ const schema = z.object({
   LOG_LEVEL: z
     .enum(['debug', 'info', 'warn', 'error'], { error: 'must be debug, info, warn or error' })
     .default('info'),
+  BREVOLT_VERSION: z.string().default('dev'),
 });
 
 /**
@@ -118,7 +121,7 @@ function resolveEnv(
     if (values[name] === '') values[name] = undefined;
   }
   // Compose passes unset optional variables as empty strings.
-  for (const name of ['DATABASE_PATH', 'PUBLIC_URL', 'DASHBOARD_DIR']) {
+  for (const name of ['DATABASE_PATH', 'PUBLIC_URL', 'DASHBOARD_DIR', 'BREVOLT_VERSION']) {
     if (values[name] === '') values[name] = undefined;
   }
   return { values, issues };
@@ -156,5 +159,6 @@ export function loadConfig(
     host: d.HOST,
     port: d.PORT,
     logLevel: d.LOG_LEVEL,
+    version: d.BREVOLT_VERSION,
   });
 }

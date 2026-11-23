@@ -14,6 +14,8 @@ export interface AppOptions {
   now?: () => Date;
   /** Built dashboard directory. When set, the dashboard SPA is served behind the session login. */
   dashboardDir?: string;
+  /** Running version reported by `/healthz`; defaults to `dev`. */
+  version?: string;
 }
 
 /** Status of one external system. Adapters register themselves here in later phases. */
@@ -39,6 +41,7 @@ export function buildApp(
       .header('Cache-Control', 'no-store')
       .send({
         status: database === 'ok' ? 'ok' : 'down',
+        version: opts.version ?? 'dev',
         database,
         adapters: adapters(),
         time: now().toISOString(),

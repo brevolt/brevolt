@@ -25,6 +25,10 @@ RUN apk upgrade --no-cache \
 WORKDIR /app
 COPY --from=build --chown=root:root /out /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 DATABASE_PATH=/data/brevolt.db DASHBOARD_DIR=/app/dashboard
+# Release version (X.Y.Z) passed by .github/workflows/release.yml; any other build reports `dev`.
+# Declared last so changing it does not invalidate the cached layers above.
+ARG BREVOLT_VERSION=dev
+ENV BREVOLT_VERSION=${BREVOLT_VERSION}
 USER node
 VOLUME ["/data"]
 EXPOSE 3000
