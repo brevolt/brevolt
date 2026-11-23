@@ -18,6 +18,7 @@ const TABLES = [
   'contact_tag',
   'custom_field',
   'external_link',
+  'proposal',
   'setting',
   'sync_base',
   'tag',

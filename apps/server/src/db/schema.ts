@@ -150,8 +150,42 @@ export const conflict = sqliteTable(
     status: text('status', { enum: ['pending', 'resolved'] })
       .notNull()
       .default('pending'),
+    /** Set on resolution: which side the user chose. */
+    resolution: text('resolution', { enum: ['hub', 'external', 'manual'] }),
+    /** JSON of the value written everywhere on resolution. */
+    resolvedValue: text('resolved_value'),
+    resolvedAt: text('resolved_at'),
   },
   (t) => [index('conflict_status_idx').on(t.status)],
+);
+
+/**
+ * Decisions that are not a field conflict (R-SYNC-4): a new external contact matching an existing
+ * one (`merge`) or a contact deleted in an external system (`deleted-upstream`). Nothing is written
+ * until the user accepts or rejects it in the dashboard.
+ */
+export const proposal = sqliteTable(
+  'proposal',
+  {
+    id: text('id').primaryKey(),
+    type: text('type', { enum: ['merge', 'deleted-upstream'] }).notNull(),
+    system: text('system', { enum: ['icloud', 'google', 'obsidian'] }).notNull(),
+    /** Existing hub contact: the merge target, or the contact deleted upstream. */
+    contactId: text('contact_id')
+      .notNull()
+      .references(() => contact.id, { onDelete: 'cascade' }),
+    /** Merge only: the external record's id and normalized snapshot (JSON). */
+    externalId: text('external_id'),
+    externalSnapshot: text('external_snapshot'),
+    /** Why it matched, e.g. `phone:+34600111222`. */
+    reason: text('reason'),
+    status: text('status', { enum: ['pending', 'accepted', 'rejected', 'withdrawn'] })
+      .notNull()
+      .default('pending'),
+    createdAt: text('created_at').notNull(),
+    resolvedAt: text('resolved_at'),
+  },
+  (t) => [index('proposal_status_idx').on(t.status), index('proposal_contact_idx').on(t.contactId)],
 );
 
 export const client = sqliteTable(

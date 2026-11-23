@@ -10,6 +10,8 @@ export { ContactService, type ContactView, type UndoResult } from './contacts/se
 export { changeRoutes, type ChangeRoutesOptions } from './changes/routes.js';
 export { bridgeRoutes, type BridgeRoutesOptions } from './bridge/routes.js';
 export { BridgeSync } from './bridge/sync.js';
+export { decisionRoutes, type DecisionRoutesOptions } from './bridge/decision-routes.js';
+export { Decisions } from './bridge/decisions.js';
 export { buildApp, type AppOptions, type AdapterStatus } from './app.js';
 export { exportSchema, buildExport, type HubExport } from './export/json.js';
 export { contactToVCard, contactsToVCard } from './export/vcard.js';

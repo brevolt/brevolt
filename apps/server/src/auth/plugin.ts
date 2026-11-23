@@ -28,7 +28,13 @@ const SCOPE_ROUTES: Record<TokenScope, readonly string[]> = {
  * `/v1` routes the dashboard session may also reach. Client tokens keep their own scopes:
  * undo and export stay closed to every token.
  */
-const DASHBOARD_ROUTES: readonly string[] = ['/v1/contacts', '/v1/changes', '/v1/export'];
+const DASHBOARD_ROUTES: readonly string[] = [
+  '/v1/contacts',
+  '/v1/changes',
+  '/v1/export',
+  '/v1/conflicts',
+  '/v1/proposals',
+];
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export interface TokenAuthOptions {

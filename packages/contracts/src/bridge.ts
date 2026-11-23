@@ -64,6 +64,7 @@ export const bridgeChangeOutcomeSchema = z.enum([
   'unchanged',
   'conflict',
   'deleted_upstream',
+  'proposal',
   'ignored',
   'duplicate',
 ]);
