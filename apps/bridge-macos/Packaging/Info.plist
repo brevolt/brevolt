@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>app.brevolt.bridge</string>
+  <key>CFBundleName</key><string>Brevolt Bridge</string>
+  <key>CFBundleDisplayName</key><string>Brevolt Bridge</string>
+  <key>CFBundleExecutable</key><string>BrevoltBridge</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>__VERSION__</string>
+  <key>CFBundleVersion</key><string>__VERSION__</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>LSUIElement</key><true/>
+  <key>NSContactsUsageDescription</key>
+  <string>Brevolt Bridge reads and updates your contacts to keep them in sync with your Brevolt hub.</string>
+</dict>
+</plist>
