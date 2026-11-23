@@ -52,7 +52,7 @@ Run `pnpm release X.Y.Z` from an up-to-date, clean `main` (`pnpm release X.Y.Z -
 
 1. Checks the version is newer than the last tag and that CI passed on `HEAD`.
 2. Runs `pnpm install --frozen-lockfile`, `lint`, `format`, `typecheck` and `test`.
-3. Sets `version` in the root `package.json`, commits `chore(release): vX.Y.Z`, tags `vX.Y.Z` and pushes both atomically (the push to `main` also redeploys staging).
+3. Tags `HEAD` (the current `origin/main`) as `vX.Y.Z` and pushes only the tag. It never commits or pushes `main`, which only accepts pull requests. The tag is the version: the root `package.json` version is not bumped.
 4. Waits for the Release workflow, which builds, pushes, signs and attests the image. The image is never built locally: it would be unsigned and built for the laptop's CPU architecture.
 5. Creates the GitHub release (pre-release while the version is `0.x`) and verifies the signature if `cosign` is installed.
 
