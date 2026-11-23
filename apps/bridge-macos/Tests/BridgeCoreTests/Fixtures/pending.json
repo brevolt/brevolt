@@ -1,1 +1,11 @@
-{"cursor":"c-42","changes":[{"operation_id":"op-1","contact_id":"00000000-0000-4000-8000-000000000001","local_id":null,"contact":{"name":"Test Person","phones":["+34600000000"]}}]}
+{
+  "cursor": "c-42",
+  "changes": [
+    {
+      "operation_id": "op-1",
+      "contact_id": "00000000-0000-4000-8000-000000000001",
+      "local_id": null,
+      "contact": { "name": "Test Person", "phones": ["+34600000000"] }
+    }
+  ]
+}
