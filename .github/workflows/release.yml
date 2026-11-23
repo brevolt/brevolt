@@ -59,3 +59,73 @@ jobs:
         run: |
           cosign attest --yes --type spdxjson --predicate sbom.spdx.json \
             "${IMAGE}@${{ steps.build.outputs.digest }}"
+
+  bridge:
+    # Signed, notarized macOS bridge (R-SEC-11). Certificate and notarization
+    # credentials exist only as repository secrets; nothing is stored in the repo:
+    #   MACOS_CERT_P12 (base64 Developer ID Application .p12), MACOS_CERT_PASSWORD,
+    #   MACOS_SIGN_IDENTITY, NOTARY_APPLE_ID, NOTARY_TEAM_ID, NOTARY_APP_PASSWORD
+    runs-on: macos-14
+    timeout-minutes: 45
+    permissions:
+      contents: write # attach the dmg to the release
+    env:
+      KEYCHAIN: ${{ runner.temp }}/release.keychain-db
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import signing certificate
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KC_PASS="$(uuidgen)"
+          printf '%s' "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KC_PASS" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KC_PASS" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERT_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KC_PASS" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          rm -f "$RUNNER_TEMP/cert.p12"
+      - name: Build and sign app
+        env:
+          SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: apps/bridge-macos/Packaging/build-app.sh "${GITHUB_REF_NAME#v}" "$RUNNER_TEMP/out"
+      - name: Package dmg
+        run: |
+          set -euo pipefail
+          DMG="$RUNNER_TEMP/BrevoltBridge-${GITHUB_REF_NAME#v}.dmg"
+          hdiutil create -volname "Brevolt Bridge" -srcfolder "$RUNNER_TEMP/out/Brevolt Bridge.app" \
+            -ov -format UDZO "$DMG"
+          codesign --force --timestamp --sign "${{ secrets.MACOS_SIGN_IDENTITY }}" "$DMG"
+          echo "DMG=$DMG" >> "$GITHUB_ENV"
+      - name: Notarize and staple
+        env:
+          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+          NOTARY_APP_PASSWORD: ${{ secrets.NOTARY_APP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          xcrun notarytool submit "$DMG" --apple-id "$NOTARY_APPLE_ID" \
+            --team-id "$NOTARY_TEAM_ID" --password "$NOTARY_APP_PASSWORD" --wait
+          xcrun stapler staple "$DMG"
+      - name: Verify Gatekeeper acceptance
+        run: |
+          set -euo pipefail
+          codesign --verify --verbose=2 "$DMG"
+          spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG"
+          xcrun stapler validate "$DMG"
+          hdiutil attach "$DMG" -mountpoint "$RUNNER_TEMP/mnt" -nobrowse -quiet
+          codesign --verify --deep --strict --verbose=2 "$RUNNER_TEMP/mnt/Brevolt Bridge.app"
+          spctl --assess --type execute --verbose=4 "$RUNNER_TEMP/mnt/Brevolt Bridge.app"
+          hdiutil detach "$RUNNER_TEMP/mnt" -quiet
+      - name: Publish to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" "$DMG" --clobber || \
+          gh release create "$GITHUB_REF_NAME" "$DMG" --title "$GITHUB_REF_NAME" --generate-notes
+      - name: Remove keychain
+        if: always()
+        run: security delete-keychain "$KEYCHAIN" || true
