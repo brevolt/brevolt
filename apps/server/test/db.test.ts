@@ -8,6 +8,8 @@ import { DEFAULT_MIGRATIONS_FOLDER, openDatabase, schema } from '../src/db/index
 const TABLES = [
   'admin_session',
   'admin_user',
+  'bridge_operation',
+  'bridge_pending',
   'change_log',
   'client',
   'conflict',
