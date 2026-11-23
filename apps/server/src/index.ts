@@ -8,6 +8,8 @@ export { tokenAuthPlugin, isInScope, type TokenAuthOptions } from './auth/plugin
 export { contactRoutes, type ContactRoutesOptions } from './contacts/routes.js';
 export { ContactService, type ContactView, type UndoResult } from './contacts/service.js';
 export { changeRoutes, type ChangeRoutesOptions } from './changes/routes.js';
+export { bridgeRoutes, type BridgeRoutesOptions } from './bridge/routes.js';
+export { BridgeSync } from './bridge/sync.js';
 export { buildApp, type AppOptions, type AdapterStatus } from './app.js';
 export { exportSchema, buildExport, type HubExport } from './export/json.js';
 export { contactToVCard, contactsToVCard } from './export/vcard.js';

@@ -196,3 +196,53 @@ export const setting = sqliteTable('setting', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
 });
+
+/**
+ * Idempotency log for bridge uploads (R-SYNC-3): one row per `operation_id` already processed
+ * for a client, holding the original result so a resend replays it without touching the hub.
+ */
+export const bridgeOperation = sqliteTable(
+  'bridge_operation',
+  {
+    clientId: text('client_id')
+      .notNull()
+      .references(() => client.id, { onDelete: 'cascade' }),
+    operationId: text('operation_id').notNull(),
+    outcome: text('outcome').notNull(),
+    contactId: text('contact_id'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.clientId, t.operationId] })],
+);
+
+/**
+ * Per-client queue of hub changes the bridge still has to write to its system. `payload` is the
+ * normalized snapshot sent; on ack it becomes the new `sync_base` (R-SYNC-2).
+ */
+export const bridgePending = sqliteTable(
+  'bridge_pending',
+  {
+    seq: integer('seq').primaryKey({ autoIncrement: true }),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => client.id, { onDelete: 'cascade' }),
+    operationId: text('operation_id').notNull(),
+    contactId: text('contact_id').notNull(),
+    kind: text('kind', { enum: ['upsert', 'delete'] }).notNull(),
+    localId: text('local_id'),
+    payload: text('payload'),
+    hash: text('hash').notNull(),
+    status: text('status', { enum: ['pending', 'acked', 'error', 'superseded'] })
+      .notNull()
+      .default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    error: text('error'),
+    createdAt: text('created_at').notNull(),
+    ackedAt: text('acked_at'),
+  },
+  (t) => [
+    uniqueIndex('bridge_pending_operation_unique').on(t.clientId, t.operationId),
+    index('bridge_pending_status_idx').on(t.clientId, t.status, t.seq),
+    index('bridge_pending_contact_idx').on(t.clientId, t.contactId),
+  ],
+);

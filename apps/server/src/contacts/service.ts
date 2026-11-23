@@ -106,9 +106,9 @@ export type UndoResult =
   | { ok: false; reason: 'not_found' }
   | { ok: false; reason: 'conflict'; fields: string[] };
 
-type Tx = Parameters<Parameters<HubDatabase['transaction']>[0]>[0];
+export type Tx = Parameters<Parameters<HubDatabase['transaction']>[0]>[0];
 
-function normalizeValue(db: HubDatabase | Tx, kind: string, value: string): string {
+export function normalizeValue(db: HubDatabase | Tx, kind: string, value: string): string {
   if (kind === 'phone')
     return normalizePhone(value, { defaultRegion: getPhoneRegion(db) }).normalized;
   if (kind === 'email') return normalizeEmail(value);
@@ -236,7 +236,7 @@ function logChanges(
 }
 
 export class ContactService {
-  constructor(private readonly db: HubDatabase) {}
+  constructor(private readonly db: HubDatabase | Tx) {}
 
   get(id: string): ContactView | null {
     return load(this.db, id);

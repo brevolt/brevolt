@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import type { HubDatabase } from './db/index.js';
 import { tokenAuthPlugin } from './auth/plugin.js';
 import { changeRoutes } from './changes/routes.js';
+import { bridgeRoutes } from './bridge/routes.js';
 import { contactRoutes } from './contacts/routes.js';
 import { dashboardAuthPlugin } from './auth/dashboard.js';
 import { dashboardStaticRoutes } from './dashboard/static.js';
@@ -49,6 +50,7 @@ export function buildApp(
   void app.register(settingsRoutes, { db: opts.db, adapters, now });
   void app.register(contactRoutes, { db: opts.db, now });
   void app.register(changeRoutes, { db: opts.db, now });
+  void app.register(bridgeRoutes, { db: opts.db, now });
   if (opts.dashboardDir) void app.register(dashboardStaticRoutes, { dir: opts.dashboardDir });
   return app;
 }
