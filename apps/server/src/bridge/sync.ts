@@ -257,7 +257,7 @@ function displayName(s: ContactSnapshot): string {
 function diffSnapshots(base: ContactSnapshot | null, next: ContactSnapshot): DiffChange[] {
   const out: DiffChange[] = [];
   for (const k of SCALAR_FIELDS) {
-    const before = base ? (base[k]) : null;
+    const before = base ? base[k] : null;
     const after = next[k];
     if (before !== after) out.push({ field: k, before, after });
   }
