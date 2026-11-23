@@ -46,3 +46,13 @@ export const settingsQuery = () =>
       return res.value;
     },
   });
+
+export const syncQuery = () =>
+  queryOptions({
+    queryKey: ['sync'] as const,
+    queryFn: async () => {
+      const res = await api.syncState();
+      if (!res.ok) throw new Error('sync failed');
+      return res.value;
+    },
+  });

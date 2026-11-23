@@ -19,6 +19,7 @@ import {
   type OpenedDatabase,
 } from '../src/index.js';
 import { MAX_ATTEMPTS } from '../src/bridge/sync.js';
+import { setDryRun } from '../src/settings/dry-run.js';
 
 const fixture = (name: string): unknown =>
   JSON.parse(
@@ -47,6 +48,8 @@ async function harness(): Promise<Harness> {
   const app = buildApp({ db: opened.db, now: clock });
   await app.ready();
   const { token, id } = createClientToken(opened.db, { kind: 'bridge-macos', name: 'mac' });
+  // Dry-run is on by default (BRV-033); these tests exercise real sync.
+  setDryRun(opened.db, 'icloud', false);
   return { opened, app, token, clientId: id, service: new ContactService(opened.db) };
 }
 

@@ -28,6 +28,9 @@ export function Shell() {
           <Link to="/contacts" className={nav} activeProps={navActive}>
             Contacts
           </Link>
+          <Link to="/sync" className={nav} activeProps={navActive}>
+            Sync
+          </Link>
           <Link to="/settings" className={nav} activeProps={navActive}>
             Settings
           </Link>
