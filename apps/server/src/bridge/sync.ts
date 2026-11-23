@@ -29,6 +29,7 @@ import {
   type WriteContext,
 } from '../contacts/service.js';
 import { uuidv7 } from '../contacts/uuid.js';
+import { isDryRun } from '../settings/dry-run.js';
 
 /** The macOS bridge syncs one external system. */
 const SYSTEM = 'icloud' as const;
@@ -228,6 +229,51 @@ function baseAfterIncoming(
   return canonical(next);
 }
 
+interface PlannedChange {
+  id: string;
+  linkId: string | null;
+  desired: { kind: 'upsert' | 'delete'; hash: string; payload: string | null } | null;
+  snap: ContactSnapshot | null;
+}
+
+export interface DiffChange {
+  field: string;
+  before: string | null;
+  after: string | null;
+}
+
+export interface DiffEntry {
+  contact_id: string;
+  action: 'create' | 'update' | 'delete';
+  name: string;
+  changes: DiffChange[];
+}
+
+function displayName(s: ContactSnapshot): string {
+  const name = [s.givenName, s.familyNames].filter(Boolean).join(' ');
+  return name || s.company || s.nickname || '(no name)';
+}
+
+function diffSnapshots(base: ContactSnapshot | null, next: ContactSnapshot): DiffChange[] {
+  const out: DiffChange[] = [];
+  for (const k of SCALAR_FIELDS) {
+    const before = base ? (base[k]) : null;
+    const after = next[k];
+    if (before !== after) out.push({ field: k, before, after });
+  }
+  const was = new Map((base?.fields ?? []).map((f) => [keyOf(f), f]));
+  const now = new Map(next.fields.map((f) => [keyOf(f), f]));
+  for (const [k, f] of now) {
+    const old = was.get(k);
+    if (!old) out.push({ field: f.kind, before: null, after: f.value });
+    else if (old.label !== f.label)
+      out.push({ field: `${f.kind} label`, before: old.label, after: f.label });
+  }
+  for (const [k, f] of was)
+    if (!now.has(k)) out.push({ field: f.kind, before: f.value, after: null });
+  return out;
+}
+
 export interface ChangeResult {
   operation_id: string;
   outcome: BridgeChangeOutcome;
@@ -371,6 +417,9 @@ export class BridgeSync {
     clientId: string,
     cursor: number,
   ): { changes: BridgePendingChange[]; next: string | null } {
+    // Dry-run (BRV-033): the bridge gets nothing and the queue is not even refreshed, so turning
+    // dry-run off later starts from the current hub state, not from stale queued writes.
+    if (isDryRun(this.db, SYSTEM)) return { changes: [], next: null };
     this.db.transaction((tx) => {
       this.refreshQueue(tx, clientId);
     });
@@ -400,9 +449,9 @@ export class BridgeSync {
     return { changes, next: rows.length > page.length && last ? String(last.seq) : null };
   }
 
-  private refreshQueue(tx: Tx, clientId: string): void {
+  /** What the hub would send to the bridge right now: read-only, used by the queue and the diff. */
+  private plan(tx: Tx): PlannedChange[] {
     const service = new ContactService(tx);
-    const now = this.now().toISOString();
     const links = new Map(
       tx
         .select()
@@ -427,6 +476,66 @@ export class BridgeSync {
         .all()
         .map((c) => c.contactId),
     );
+    const out: PlannedChange[] = [];
+    const ids = tx.select({ id: contact.id, deletedAt: contact.deletedAt }).from(contact).all();
+    for (const { id, deletedAt } of ids) {
+      const linkId = links.get(id) ?? null;
+      let desired: PlannedChange['desired'] = null;
+      let snap: ContactSnapshot | null = null;
+      if (!blocked.has(id)) {
+        if (deletedAt) {
+          if (linkId) desired = { kind: 'delete', hash: 'delete', payload: null };
+        } else {
+          const view = service.get(id);
+          if (view) {
+            snap = snapshotOfView(view);
+            const hash = hashSnapshot(snap);
+            if (!linkId || bases.get(id) !== hash) {
+              desired = { kind: 'upsert', hash, payload: JSON.stringify(snap) };
+            }
+          }
+        }
+      }
+      out.push({ id, linkId, desired, snap });
+    }
+    return out;
+  }
+
+  /**
+   * Dry-run preview (BRV-033): everything the bridge would be asked to write, computed without
+   * touching the queue, the bases or the links.
+   */
+  diff(): DiffEntry[] {
+    return this.db.transaction((tx) => {
+      const entries: DiffEntry[] = [];
+      for (const p of this.plan(tx)) {
+        if (!p.desired) continue;
+        if (p.desired.kind === 'delete') {
+          const base = loadBase(tx, p.id);
+          entries.push({
+            contact_id: p.id,
+            action: 'delete',
+            name: base ? displayName(base) : p.id,
+            changes: [],
+          });
+          continue;
+        }
+        const next = p.snap ?? EMPTY;
+        const base = p.linkId ? loadBase(tx, p.id) : null;
+        entries.push({
+          contact_id: p.id,
+          action: p.linkId ? 'update' : 'create',
+          name: displayName(next),
+          changes: diffSnapshots(base, next),
+        });
+      }
+      return entries;
+    });
+  }
+
+  private refreshQueue(tx: Tx, clientId: string): void {
+    const now = this.now().toISOString();
+    const planned = this.plan(tx);
     const rows = tx
       .select()
       .from(bridgePending)
@@ -436,28 +545,9 @@ export class BridgeSync {
     const byContact = new Map<string, typeof rows>();
     for (const r of rows) byContact.set(r.contactId, [...(byContact.get(r.contactId) ?? []), r]);
 
-    const ids = tx.select({ id: contact.id, deletedAt: contact.deletedAt }).from(contact).all();
-    for (const { id, deletedAt } of ids) {
+    for (const { id, linkId, desired } of planned) {
       const history = byContact.get(id) ?? [];
       const open = history.filter((r) => r.status === 'pending' || r.status === 'error').at(-1);
-      const linkId = links.get(id) ?? null;
-
-      let desired: { kind: 'upsert' | 'delete'; hash: string; payload: string | null } | null =
-        null;
-      if (!blocked.has(id)) {
-        if (deletedAt) {
-          if (linkId) desired = { kind: 'delete', hash: 'delete', payload: null };
-        } else {
-          const view = service.get(id);
-          if (view) {
-            const snap = snapshotOfView(view);
-            const hash = hashSnapshot(snap);
-            if (!linkId || bases.get(id) !== hash) {
-              desired = { kind: 'upsert', hash, payload: JSON.stringify(snap) };
-            }
-          }
-        }
-      }
 
       if (open && desired && open.kind === desired.kind && open.hash === desired.hash) {
         if (open.status === 'error' && open.attempts < MAX_ATTEMPTS) {

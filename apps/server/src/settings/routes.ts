@@ -5,6 +5,8 @@ import { SCOPE_BY_KIND, createClientToken, revokeClientToken } from '../auth/tok
 import { client } from '../db/schema.js';
 import type { HubDatabase } from '../db/index.js';
 import type { AdapterStatus } from '../app.js';
+import { BridgeSync } from '../bridge/sync.js';
+import { isDryRun, setDryRun } from './dry-run.js';
 import { getPhoneRegion, setPhoneRegion } from './settings.js';
 
 export interface SettingsRoutesOptions {
@@ -19,6 +21,7 @@ const createBody = z.object({
   kind: z.enum(['bridge-macos', 'obsidian']),
 });
 const regionBody = z.object({ region: z.string() });
+const dryRunBody = z.object({ enabled: z.boolean(), confirm: z.boolean().optional() });
 const idParams = z.object({ id: z.uuid() });
 
 const routes: FastifyPluginCallback<SettingsRoutesOptions> = (app: FastifyInstance, opts, done) => {
@@ -65,6 +68,26 @@ const routes: FastifyPluginCallback<SettingsRoutesOptions> = (app: FastifyInstan
     if (!params.success) return reply.code(404).send({ error: 'not_found' });
     revokeClientToken(opts.db, params.data.id, now());
     return json(reply).send({ ok: true });
+  });
+
+  const sync = new BridgeSync(opts.db, now);
+  const dryRunState = () => ({
+    system: 'icloud',
+    dryRun: isDryRun(opts.db, 'icloud'),
+    diff: sync.diff(),
+  });
+
+  app.get('/api/sync/icloud', (_request, reply) => json(reply).send(dryRunState()));
+
+  app.put('/api/sync/icloud/dry-run', (request, reply) => {
+    const body = dryRunBody.safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: 'invalid_body' });
+    // Leaving dry-run lets the bridge write to the real address book: ask for confirmation.
+    if (!body.data.enabled && body.data.confirm !== true) {
+      return reply.code(409).send({ error: 'confirmation_required' });
+    }
+    setDryRun(opts.db, 'icloud', body.data.enabled);
+    return json(reply).send(dryRunState());
   });
 
   app.put('/api/settings/region', (request, reply) => {

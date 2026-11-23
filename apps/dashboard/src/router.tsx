@@ -12,6 +12,7 @@ import { ContactDetailPage } from './pages/ContactDetailPage.js';
 import { ContactsLayout, ContactsIndex } from './pages/ContactsLayout.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { NewContactPage } from './pages/NewContactPage.js';
+import { SyncPage } from './pages/SyncPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { Shell } from './components/Shell.js';
 
@@ -68,6 +69,11 @@ const contactRoute = createRoute({
   path: '$id',
   component: ContactDetailPage,
 });
+const syncRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/sync',
+  component: SyncPage,
+});
 const settingsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/settings',
@@ -79,6 +85,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   appRoute.addChildren([
     contactsRoute.addChildren([contactsIndexRoute, newContactRoute, contactRoute]),
+    syncRoute,
     settingsRoute,
   ]),
 ]);

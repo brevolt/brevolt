@@ -101,6 +101,19 @@ export interface SettingsData {
   systems: Record<string, string>;
 }
 
+export interface SyncDiffEntry {
+  contact_id: string;
+  action: 'create' | 'update' | 'delete';
+  name: string;
+  changes: { field: string; before: string | null; after: string | null }[];
+}
+
+export interface SyncState {
+  system: string;
+  dryRun: boolean;
+  diff: SyncDiffEntry[];
+}
+
 export interface CreatedToken {
   id: string;
   name: string;
@@ -126,6 +139,11 @@ export const api = {
     }),
   saveRegion: (region: string) =>
     call<{ region: string }>('PUT', '/api/settings/region', { body: { region } }),
+  syncState: () => call<SyncState>('GET', '/api/sync/icloud'),
+  setDryRun: (enabled: boolean, confirm?: boolean) =>
+    call<SyncState>('PUT', '/api/sync/icloud/dry-run', {
+      body: confirm === undefined ? { enabled } : { enabled, confirm },
+    }),
   changePassword: (body: {
     currentPassword: string;
     newPassword: string;
