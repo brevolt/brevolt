@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull, notInArray } from 'drizzle-orm';
 import {
   contactSnapshotSchema,
   type BridgeAckRequest,
@@ -18,7 +18,9 @@ import {
   changeLog,
   conflict,
   contact,
+  contactField,
   externalLink,
+  proposal,
   syncBase,
 } from '../db/schema.js';
 import {
@@ -31,12 +33,12 @@ import {
 import { uuidv7 } from '../contacts/uuid.js';
 
 /** The macOS bridge syncs one external system. */
-const SYSTEM = 'icloud' as const;
+export const SYSTEM = 'icloud' as const;
 /** An errored change is retried on later polls this many times, then left for the user. */
 export const MAX_ATTEMPTS = 5;
 const PAGE_SIZE = 100;
 
-const EMPTY: ContactSnapshot = {
+export const EMPTY: ContactSnapshot = {
   prefix: null,
   givenName: null,
   middleName: null,
@@ -49,10 +51,11 @@ const EMPTY: ContactSnapshot = {
   fields: [],
 };
 
-type SnapField = ContactSnapshot['fields'][number];
-const keyOf = (f: { kind: string; normalized: string }): string => `${f.kind}\u0000${f.normalized}`;
+export type SnapField = ContactSnapshot['fields'][number];
+export const keyOf = (f: { kind: string; normalized: string }): string =>
+  `${f.kind}\u0000${f.normalized}`;
 
-function canonical(s: ContactSnapshot): ContactSnapshot {
+export function canonical(s: ContactSnapshot): ContactSnapshot {
   const fields = [...s.fields].sort((a, b) =>
     keyOf(a) < keyOf(b) ? -1 : keyOf(a) > keyOf(b) ? 1 : 0,
   );
@@ -73,7 +76,7 @@ export function hashSnapshot(s: ContactSnapshot): string {
     .digest('hex');
 }
 
-function snapshotOfView(v: ContactView): ContactSnapshot {
+export function snapshotOfView(v: ContactView): ContactSnapshot {
   const scalars = Object.fromEntries(SCALAR_FIELDS.map((k) => [k, v[k]]));
   return canonical({
     ...(scalars as Omit<ContactSnapshot, 'fields'>),
@@ -114,7 +117,7 @@ function toBridgeContact(s: ContactSnapshot): BridgeContact {
   };
 }
 
-function loadBase(tx: Tx, contactId: string): ContactSnapshot | null {
+export function loadBase(tx: Tx, contactId: string): ContactSnapshot | null {
   const row = tx
     .select()
     .from(syncBase)
@@ -123,7 +126,7 @@ function loadBase(tx: Tx, contactId: string): ContactSnapshot | null {
   return row ? contactSnapshotSchema.parse(JSON.parse(row.snapshot)) : null;
 }
 
-function saveBase(tx: Tx, contactId: string, snapshot: ContactSnapshot, now: Date): string {
+export function saveBase(tx: Tx, contactId: string, snapshot: ContactSnapshot, now: Date): string {
   const snap = canonical(snapshot);
   const hash = hashSnapshot(snap);
   const values = { snapshot: JSON.stringify(snap), hash, syncedAt: now.toISOString() };
@@ -134,7 +137,7 @@ function saveBase(tx: Tx, contactId: string, snapshot: ContactSnapshot, now: Dat
   return hash;
 }
 
-function saveLink(tx: Tx, contactId: string, externalId: string, etag: string): void {
+export function saveLink(tx: Tx, contactId: string, externalId: string, etag: string): void {
   tx.delete(externalLink)
     .where(and(eq(externalLink.contactId, contactId), eq(externalLink.system, SYSTEM)))
     .run();
@@ -149,7 +152,7 @@ function linkFor(tx: Tx, externalId: string) {
     .get();
 }
 
-function applyHubPatch(
+export function applyHubPatch(
   service: ContactService,
   view: ContactView,
   patch: MergeResult['hubPatch'],
@@ -179,7 +182,11 @@ function conflictLabel(c: MergeResult['conflicts'][number]): string {
   return c.field === 'fields' ? `fields:${c.kind}:${c.normalized}` : c.field;
 }
 
-function recordConflicts(tx: Tx, contactId: string, conflicts: MergeResult['conflicts']): void {
+export function recordConflicts(
+  tx: Tx,
+  contactId: string,
+  conflicts: MergeResult['conflicts'],
+): void {
   for (const c of conflicts) {
     const field = conflictLabel(c);
     const values = {
@@ -209,7 +216,7 @@ function recordConflicts(tx: Tx, contactId: string, conflicts: MergeResult['conf
 }
 
 /** Base after an external read: the external state, except entries still in conflict. */
-function baseAfterIncoming(
+export function baseAfterIncoming(
   old: ContactSnapshot,
   ext: ContactSnapshot,
   conflicts: MergeResult['conflicts'],
@@ -226,6 +233,114 @@ function baseAfterIncoming(
     }
   }
   return canonical(next);
+}
+
+/** Creates a hub contact from an external snapshot and links it; returns the new id. */
+export function createFromExternal(
+  tx: Tx,
+  service: ContactService,
+  ext: ContactSnapshot,
+  localId: string,
+  ctx: WriteContext,
+): string {
+  const created = service.create(
+    {
+      ...Object.fromEntries(SCALAR_FIELDS.map((k) => [k, ext[k]])),
+      fields: ext.fields.map(({ kind, label, value }) => ({ kind, label, value })),
+    },
+    ctx,
+  );
+  const hash = saveBase(tx, created.id, snapshotOfView(created), ctx.now);
+  saveLink(tx, created.id, localId, hash);
+  return created.id;
+}
+
+/**
+ * Three-way merge of an external snapshot into a linked hub contact: hub-side changes are applied,
+ * conflicts are recorded (and left unwritten everywhere) and the base follows the external state.
+ */
+export function mergeExternal(
+  tx: Tx,
+  service: ContactService,
+  view: ContactView,
+  old: ContactSnapshot,
+  ext: ContactSnapshot,
+  ctx: WriteContext,
+): BridgeChangeOutcome {
+  const result = merge(old, snapshotOfView(view), ext);
+  applyHubPatch(service, view, result.hubPatch, ctx);
+  recordConflicts(tx, view.id, result.conflicts);
+  const hash = saveBase(tx, view.id, baseAfterIncoming(old, ext, result.conflicts), ctx.now);
+  tx.update(externalLink)
+    .set({ etag: hash })
+    .where(and(eq(externalLink.contactId, view.id), eq(externalLink.system, SYSTEM)))
+    .run();
+  return result.conflicts.length > 0
+    ? 'conflict'
+    : Object.keys(result.hubPatch).length > 0
+      ? 'merged'
+      : 'unchanged';
+}
+
+function pendingProposal(tx: Tx, type: 'merge' | 'deleted-upstream', contactId: string) {
+  return tx
+    .select()
+    .from(proposal)
+    .where(
+      and(
+        eq(proposal.type, type),
+        eq(proposal.contactId, contactId),
+        eq(proposal.system, SYSTEM),
+        eq(proposal.status, 'pending'),
+      ),
+    )
+    .get();
+}
+
+function pendingMergeFor(tx: Tx, localId: string) {
+  return tx
+    .select()
+    .from(proposal)
+    .where(
+      and(
+        eq(proposal.type, 'merge'),
+        eq(proposal.system, SYSTEM),
+        eq(proposal.externalId, localId),
+        eq(proposal.status, 'pending'),
+      ),
+    )
+    .get();
+}
+
+/**
+ * Live hub contact, not yet linked to this system, sharing a normalized phone or email with the
+ * incoming snapshot. The oldest one wins so the choice is deterministic.
+ */
+function findDuplicate(tx: Tx, ext: ContactSnapshot): { contactId: string; reason: string } | null {
+  const keys = ext.fields.filter((f) => f.kind === 'phone' || f.kind === 'email');
+  if (keys.length === 0) return null;
+  const linked = tx
+    .select({ id: externalLink.contactId })
+    .from(externalLink)
+    .where(eq(externalLink.system, SYSTEM));
+  for (const k of keys) {
+    const hit = tx
+      .select({ id: contact.id })
+      .from(contactField)
+      .innerJoin(contact, eq(contact.id, contactField.contactId))
+      .where(
+        and(
+          eq(contactField.kind, k.kind),
+          eq(contactField.normalized, k.normalized),
+          isNull(contact.deletedAt),
+          notInArray(contact.id, linked),
+        ),
+      )
+      .orderBy(asc(contact.createdAt), asc(contact.id))
+      .get();
+    if (hit) return { contactId: hit.id, reason: `${k.kind}:${k.normalized}` };
+  }
+  return null;
 }
 
 export interface ChangeResult {
@@ -293,7 +408,16 @@ export class BridgeSync {
     const link = linkFor(tx, change.local_id);
 
     if (change.kind === 'delete') {
-      if (!link) return { outcome: 'ignored', contactId: null };
+      if (!link) {
+        const open = pendingMergeFor(tx, change.local_id);
+        if (open) {
+          tx.update(proposal)
+            .set({ status: 'withdrawn', resolvedAt: ctx.now.toISOString() })
+            .where(eq(proposal.id, open.id))
+            .run();
+        }
+        return { outcome: 'ignored', contactId: null };
+      }
       const view = service.get(link.contactId);
       if (!view || view.deletedAt) {
         // The hub already deleted it (this is the echo of our own delete): drop the link.
@@ -305,13 +429,18 @@ export class BridgeSync {
           .run();
         return { outcome: 'unchanged', contactId: link.contactId };
       }
-      // Never deleted in the hub automatically: flagged for confirmation in the dashboard.
-      const already = tx
-        .select({ id: changeLog.id })
-        .from(changeLog)
-        .where(and(eq(changeLog.contactId, link.contactId), eq(changeLog.field, 'deletedUpstream')))
-        .get();
+      // Never deleted in the hub automatically: a proposal waits for confirmation in the dashboard.
+      const already = pendingProposal(tx, 'deleted-upstream', link.contactId);
       if (!already) {
+        tx.insert(proposal)
+          .values({
+            id: uuidv7(),
+            type: 'deleted-upstream',
+            system: SYSTEM,
+            contactId: link.contactId,
+            createdAt: ctx.now.toISOString(),
+          })
+          .run();
         tx.insert(changeLog)
           .values({
             ts: ctx.now.toISOString(),
@@ -330,35 +459,49 @@ export class BridgeSync {
     const ext = snapshotOfIncoming(tx, change.contact ?? { ...EMPTY });
 
     if (!link) {
-      const created = service.create(
-        {
-          ...Object.fromEntries(SCALAR_FIELDS.map((k) => [k, ext[k]])),
-          fields: ext.fields.map(({ kind, label, value }) => ({ kind, label, value })),
-        },
-        ctx,
-      );
-      const hash = saveBase(tx, created.id, snapshotOfView(created), ctx.now);
-      saveLink(tx, created.id, change.local_id, hash);
-      return { outcome: 'created', contactId: created.id };
+      const open = pendingMergeFor(tx, change.local_id);
+      if (open) {
+        tx.update(proposal)
+          .set({ externalSnapshot: JSON.stringify(ext) })
+          .where(eq(proposal.id, open.id))
+          .run();
+        return { outcome: 'proposal', contactId: open.contactId };
+      }
+      // Never merged automatically: a match by normalized phone or email becomes a proposal.
+      const match = findDuplicate(tx, ext);
+      if (match) {
+        tx.insert(proposal)
+          .values({
+            id: uuidv7(),
+            type: 'merge',
+            system: SYSTEM,
+            contactId: match.contactId,
+            externalId: change.local_id,
+            externalSnapshot: JSON.stringify(ext),
+            reason: match.reason,
+            createdAt: ctx.now.toISOString(),
+          })
+          .run();
+        return { outcome: 'proposal', contactId: match.contactId };
+      }
+      const created = createFromExternal(tx, service, ext, change.local_id, ctx);
+      return { outcome: 'created', contactId: created };
     }
 
     const view = service.get(link.contactId);
     if (!view || view.deletedAt) return { outcome: 'ignored', contactId: link.contactId };
-    const old = loadBase(tx, view.id) ?? EMPTY;
-    const result = merge(old, snapshotOfView(view), ext);
-    applyHubPatch(service, view, result.hubPatch, ctx);
-    recordConflicts(tx, view.id, result.conflicts);
-    const hash = saveBase(tx, view.id, baseAfterIncoming(old, ext, result.conflicts), ctx.now);
-    tx.update(externalLink)
-      .set({ etag: hash })
-      .where(and(eq(externalLink.contactId, view.id), eq(externalLink.system, SYSTEM)))
+    // It exists externally after all: a pending "deleted upstream" no longer holds.
+    tx.update(proposal)
+      .set({ status: 'withdrawn', resolvedAt: ctx.now.toISOString() })
+      .where(
+        and(
+          eq(proposal.contactId, view.id),
+          eq(proposal.type, 'deleted-upstream'),
+          eq(proposal.status, 'pending'),
+        ),
+      )
       .run();
-    const outcome: BridgeChangeOutcome =
-      result.conflicts.length > 0
-        ? 'conflict'
-        : Object.keys(result.hubPatch).length > 0
-          ? 'merged'
-          : 'unchanged';
+    const outcome = mergeExternal(tx, service, view, loadBase(tx, view.id) ?? EMPTY, ext, ctx);
     return { outcome, contactId: view.id };
   }
 
@@ -427,6 +570,15 @@ export class BridgeSync {
         .all()
         .map((c) => c.contactId),
     );
+    // A pending deletion or merge decision holds the contact back: pushing it now would recreate
+    // the deleted card, or duplicate the one it may be merged with.
+    for (const p of tx
+      .select({ contactId: proposal.contactId })
+      .from(proposal)
+      .where(and(eq(proposal.system, SYSTEM), eq(proposal.status, 'pending')))
+      .all()) {
+      blocked.add(p.contactId);
+    }
     const rows = tx
       .select()
       .from(bridgePending)
