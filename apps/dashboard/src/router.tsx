@@ -10,6 +10,7 @@ import {
 import { api } from './lib/api.js';
 import { ContactDetailPage } from './pages/ContactDetailPage.js';
 import { ContactsLayout, ContactsIndex } from './pages/ContactsLayout.js';
+import { InboxPage } from './pages/InboxPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { NewContactPage } from './pages/NewContactPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
@@ -68,6 +69,11 @@ const contactRoute = createRoute({
   path: '$id',
   component: ContactDetailPage,
 });
+const inboxRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/inbox',
+  component: InboxPage,
+});
 const settingsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/settings',
@@ -79,6 +85,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   appRoute.addChildren([
     contactsRoute.addChildren([contactsIndexRoute, newContactRoute, contactRoute]),
+    inboxRoute,
     settingsRoute,
   ]),
 ]);

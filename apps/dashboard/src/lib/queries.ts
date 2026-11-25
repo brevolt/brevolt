@@ -46,3 +46,14 @@ export const settingsQuery = () =>
       return res.value;
     },
   });
+
+export const decisionsQuery = () =>
+  queryOptions({
+    queryKey: ['decisions'] as const,
+    refetchInterval: 30_000,
+    queryFn: async () => {
+      const [c, p] = await Promise.all([api.conflicts(), api.proposals()]);
+      if (!c.ok || !p.ok) throw new Error('decisions failed');
+      return { conflicts: c.value.conflicts, proposals: p.value.proposals };
+    },
+  });

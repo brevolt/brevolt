@@ -109,7 +109,58 @@ export interface CreatedToken {
   token: string;
 }
 
+export interface ContactRef {
+  id: string;
+  givenName: string | null;
+  familyNames: string | null;
+  company: string | null;
+}
+
+export type System = 'icloud' | 'google' | 'obsidian';
+
+export interface ConflictRow {
+  id: string;
+  contact: ContactRef;
+  /** A scalar field name, or `fields:<kind>:<normalized>` for a list entry. */
+  field: string;
+  system: System;
+  base: unknown;
+  hubValue: unknown;
+  externalValue: unknown;
+  status: 'pending' | 'resolved';
+}
+
+export interface SnapshotView {
+  givenName: string | null;
+  familyNames: string | null;
+  company: string | null;
+  fields: { kind: string; label: string; value: string }[];
+  [key: string]: unknown;
+}
+
+export interface ProposalRow {
+  id: string;
+  type: 'merge' | 'deleted-upstream';
+  system: System;
+  contact: ContactRef;
+  hub: SnapshotView | null;
+  external: SnapshotView | null;
+  reason: string | null;
+  status: 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+}
+
+export type Resolution =
+  { resolution: 'hub' } | { resolution: 'external' } | { resolution: 'manual'; value: unknown };
+
 export const api = {
+  conflicts: () => call<{ conflicts: ConflictRow[] }>('GET', '/v1/conflicts?status=pending'),
+  proposals: () => call<{ proposals: ProposalRow[] }>('GET', '/v1/proposals?status=pending'),
+  resolveConflict: (id: string, body: Resolution) =>
+    call<unknown>('POST', `/v1/conflicts/${encodeURIComponent(id)}/resolve`, { body }),
+  acceptProposal: (id: string) =>
+    call<unknown>('POST', `/v1/proposals/${encodeURIComponent(id)}/accept`, { body: {} }),
+  rejectProposal: (id: string) =>
+    call<unknown>('POST', `/v1/proposals/${encodeURIComponent(id)}/reject`, { body: {} }),
   loginCsrf: () => call<{ csrfToken: string }>('GET', '/login/csrf'),
   login: (password: string, loginCsrf: string) =>
     call<{ csrfToken: string }>('POST', '/login', {
