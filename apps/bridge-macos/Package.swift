@@ -9,7 +9,9 @@ let package = Package(
     ],
     targets: [
         // Testable logic: settings, Keychain token storage, HTTP client, sync state.
-        .target(name: "BridgeCore", path: "Sources/BridgeCore"),
+        // enumeratorForChangeHistoryFetchRequest:error: is NS_SWIFT_UNAVAILABLE (ADR-0008): tiny Objective-C shim.
+        .target(name: "CHShim", path: "Sources/CHShim", linkerSettings: [.linkedFramework("Contacts")]),
+        .target(name: "BridgeCore", dependencies: ["CHShim"], path: "Sources/BridgeCore"),
         // Menu bar UI (SwiftUI).
         .executableTarget(name: "BrevoltBridge", dependencies: ["BridgeCore"], path: "Sources/BrevoltBridge"),
         .testTarget(

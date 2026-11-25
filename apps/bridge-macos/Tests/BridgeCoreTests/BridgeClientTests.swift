@@ -44,16 +44,16 @@ final class BridgeClientTests: XCTestCase {
         let data = try fixture("pending")
         StubProtocol.handler = { _ in (200, data) }
         let r = try await client().pending(cursor: "c-1")
-        XCTAssertEqual(r.cursor, "c-42")
-        XCTAssertEqual(r.changes.first?.operationId, "op-1")
-        XCTAssertNil(r.changes.first?.localId)
+        XCTAssertEqual(r.nextCursor, "1")
+        XCTAssertEqual(r.changes.first?.operationId, "pend:0190a000-0000-7000-8000-000000000001:abc")
+        XCTAssertNil(r.changes.first?.localId); XCTAssertEqual(r.changes.first?.contact?.givenName, "Grace")
         XCTAssertEqual(StubProtocol.last?.value(forHTTPHeaderField: "Authorization"), "Bearer tok")
         XCTAssertEqual(StubProtocol.last?.url?.path, "/v1/bridge/pending")
         XCTAssertEqual(StubProtocol.last?.url?.query, "cursor=c-1")
     }
 
     func testUploadAndAckShapes() async throws {
-        StubProtocol.handler = { _ in (200, Data("{}".utf8)) }
+        StubProtocol.handler = { _ in (200, Data("{\"results\":[]}".utf8)) }
         let c = try client()
         try await c.upload(changes: [IncomingChange(operationId: "o", localId: "l", containerId: "c", kind: .delete)])
         XCTAssertEqual(StubProtocol.last?.httpMethod, "POST")

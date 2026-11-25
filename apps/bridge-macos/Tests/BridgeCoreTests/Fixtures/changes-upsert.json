@@ -1,0 +1,26 @@
+{
+  "snapshot": false,
+  "changes": [
+    {
+      "operation_id": "mac-0001",
+      "local_id": "A1B2C3D4-0000-0000-0000-000000000001:ABPerson",
+      "container_id": "icloud-container-1",
+      "kind": "upsert",
+      "contact": {
+        "givenName": "Ada",
+        "familyNames": "Lovelace",
+        "company": "Analytical Engines",
+        "fields": [
+          { "kind": "phone", "label": "mobile", "value": "+34 600 111 222" },
+          { "kind": "email", "label": "work", "value": "Ada@Example.com" }
+        ]
+      }
+    },
+    {
+      "operation_id": "mac-0002",
+      "local_id": "A1B2C3D4-0000-0000-0000-000000000002:ABPerson",
+      "container_id": "icloud-container-1",
+      "kind": "delete"
+    }
+  ]
+}
