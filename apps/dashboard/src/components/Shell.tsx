@@ -1,12 +1,18 @@
 import { Link, Outlet } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import logo64 from '../assets/logo-64.png';
 import logo128 from '../assets/logo-128.png';
 import { api } from '../lib/api.js';
+import { decisionsQuery } from '../lib/queries.js';
 
-const nav = 'rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground';
+const nav = 'rounded-md px-2 py-1.5 sm:px-3 text-sm text-muted-foreground hover:text-foreground';
 const navActive = { className: 'bg-accent text-foreground' };
 
 export function Shell() {
+  const decisions = useQuery(decisionsQuery());
+  const pending = decisions.data
+    ? decisions.data.conflicts.length + decisions.data.proposals.length
+    : 0;
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-2 border-b border-border bg-card px-4 py-2">
@@ -24,9 +30,21 @@ export function Shell() {
           />
           <span className="hidden sm:inline">brevolt</span>
         </Link>
-        <nav className="flex flex-1 items-center gap-1" aria-label="Main">
+        <nav className="flex min-w-0 flex-1 items-center sm:gap-1" aria-label="Main">
           <Link to="/contacts" className={nav} activeProps={navActive}>
             Contacts
+          </Link>
+          <Link to="/inbox" className={nav} activeProps={navActive}>
+            Inbox
+            {pending > 0 && (
+              <span
+                data-testid="inbox-count"
+                aria-label={`${String(pending)} pending decisions`}
+                className="ml-1.5 rounded-full bg-warn px-1.5 py-0.5 text-xs font-medium text-warn-foreground"
+              >
+                {pending}
+              </span>
+            )}
           </Link>
           <Link to="/settings" className={nav} activeProps={navActive}>
             Settings
